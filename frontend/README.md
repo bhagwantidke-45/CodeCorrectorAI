@@ -68,3 +68,135 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+
+ai.controller.js
+
+
+const aiService = require("../services/ai.service");
+
+module.exports.getResponse = async (req, res) => {
+  try {
+    const code = req.body.code;
+    if (!code) {
+      return res.status(400).json({ error: "Code is required" });
+    }
+
+    const prompt = `
+You are a senior JavaScript code reviewer.
+Review the following code and:
+1. Point out issues or improvements.
+2. Suggest better practices.
+3. Format your answer in Markdown.
+4. Include syntax-highlighted code examples inside triple backticks.
+
+Code to review:
+\`\`\`javascript
+${code}
+\`\`\`
+`;
+
+    const reviewText = await aiService.getAIResponse(prompt);
+    res.status(200).json({ response: reviewText });
+
+  } catch (error) {
+    console.error("AI Controller Error:", error.message);
+
+    if (error.message.includes("overloaded")) {
+      return res.status(503).json({ error: "The AI service is overloaded. Please try again in a moment." });
+    }
+
+    if (error.message.includes("unavailable")) {
+      return res.status(503).json({ error: "The AI service is currently unavailable. Please try again later." });
+    }
+
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+
+
+
+ai.routes.js
+
+
+
+const express = require("express");
+const router = express.Router();
+const { getResponse } = require("../controllers/ai.controller");
+
+router.post("/get-response", getResponse); // ✅ Change GET → POST
+
+module.exports = router;
+
+
+
+ai.service.js
+
+
+require("dotenv").config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Helper to call Gemini with retries and fallback
+async function getAIResponse(prompt) {
+  let models = ["gemini-2.0-flash", "gemini-2.5-pro"];
+
+  for (let modelName of models) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`🔹 Using model: ${modelName}, attempt ${attempt}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+      } catch (error) {
+        if (error.message.includes("overloaded") && attempt < 3) {
+          console.warn(` Model overloaded. Retrying in 2s...`);
+          await new Promise(res => setTimeout(res, 2000));
+        } else if (attempt === 3) {
+          console.error(` Failed with model: ${modelName}`, error.message);
+          break; 
+        }
+      }
+    }
+  }
+
+  throw new Error("AI service unavailable after retries and fallback");
+}
+
+module.exports = { getAIResponse };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
