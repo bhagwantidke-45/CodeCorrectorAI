@@ -5,16 +5,16 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 
-// Pages
-import Home from './pages/Home.jsx';
-import Login from './pages/Login.jsx';
-import Register from './pages/Register.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Analyzer from './pages/Analyzer.jsx';
-import History from './pages/History.jsx';
-import Reports from './pages/Reports.jsx';
-import Profile from './pages/Profile.jsx';
-import AdminPanel from './pages/AdminPanel.jsx';
+import Home         from './pages/Home.jsx';
+import Login        from './pages/Login.jsx';
+import Register     from './pages/Register.jsx';
+import Dashboard    from './pages/Dashboard.jsx';
+import Analyzer     from './pages/Analyzer.jsx';
+import History      from './pages/History.jsx';
+import Reports      from './pages/Reports.jsx';
+import Profile      from './pages/Profile.jsx';
+import AdminPanel   from './pages/AdminPanel.jsx';
+import SharedAnalysis from './pages/SharedAnalysis.jsx';
 
 export default function App() {
   return (
@@ -32,10 +32,11 @@ export default function App() {
           />
           <Routes>
             {/* Public */}
-            <Route path="/"         element={<Home />} />
-            <Route path="/login"    element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/analyze"  element={<Analyzer />} />
+            <Route path="/"            element={<Home />} />
+            <Route path="/login"       element={<Login />} />
+            <Route path="/register"    element={<Register />} />
+            <Route path="/analyze"     element={<Analyzer />} />
+            <Route path="/share/:slug" element={<SharedAnalysis />} />
 
             {/* Protected — registered users */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

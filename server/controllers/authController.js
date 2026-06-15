@@ -1,9 +1,40 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import User from '../models/User.js';
 import { logActivity } from '../services/firebaseService.js';
 
-const signToken = (userId) =>
-  jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+// Short-lived access token (15 min)
+const signAccessToken = (userId) =>
+  jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  });
+
+// Long-lived refresh token (30 days) — stored in DB
+const generateRefreshToken = () => crypto.randomBytes(40).toString('hex');
+
+// Helper: attach refresh token to user doc
+const saveRefreshToken = async (user, token) => {
+  user.refreshToken = token;
+  user.refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30d
+  await user.save({ validateBeforeSave: false });
+};
+
+// Helper: send tokens in response
+const sendTokens = (res, statusCode, message, user, accessToken, refreshToken) => {
+  // Refresh token in httpOnly cookie
+  res.cookie('cc_refresh', refreshToken, {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+  res.status(statusCode).json({
+    success: true,
+    message,
+    token: accessToken,
+    user,
+  });
+};
 
 // POST /api/auth/register
 export const register = async (req, res) => {
@@ -17,9 +48,11 @@ export const register = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered.' });
     }
     const user = await User.create({ name: name.trim(), email: email.toLowerCase(), password });
-    const token = signToken(user._id);
+    const accessToken  = signAccessToken(user._id);
+    const refreshToken = generateRefreshToken();
+    await saveRefreshToken(user, refreshToken);
     await logActivity(user._id, 'register', { email: user.email });
-    res.status(201).json({ success: true, message: 'Account created successfully.', token, user });
+    sendTokens(res, 201, 'Account created successfully.', user.toJSON(), accessToken, refreshToken);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -32,7 +65,7 @@ export const login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password +refreshToken');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
@@ -40,11 +73,47 @@ export const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account deactivated. Contact support.' });
     }
     user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
-    const token = signToken(user._id);
+    const accessToken  = signAccessToken(user._id);
+    const refreshToken = generateRefreshToken();
+    await saveRefreshToken(user, refreshToken);
     await logActivity(user._id, 'login', { email: user.email });
-    const safeUser = user.toJSON();
-    res.json({ success: true, message: 'Logged in successfully.', token, user: safeUser });
+    sendTokens(res, 200, 'Logged in successfully.', user.toJSON(), accessToken, refreshToken);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/auth/refresh
+export const refreshToken = async (req, res) => {
+  try {
+    // Accept from cookie OR request body (for clients without cookie support)
+    const token = req.cookies?.cc_refresh || req.body?.refreshToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No refresh token provided.' });
+    }
+    const user = await User.findOne({ refreshToken: token }).select('+refreshToken +refreshTokenExpiry');
+    if (!user || !user.refreshTokenExpiry || user.refreshTokenExpiry < new Date()) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token. Please log in again.' });
+    }
+    // Rotate the refresh token (one-time use)
+    const newRefreshToken = generateRefreshToken();
+    const newAccessToken  = signAccessToken(user._id);
+    await saveRefreshToken(user, newRefreshToken);
+    sendTokens(res, 200, 'Token refreshed.', user.toJSON(), newAccessToken, newRefreshToken);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/auth/logout
+export const logout = async (req, res) => {
+  try {
+    // Revoke refresh token in DB
+    if (req.user?._id) {
+      await User.findByIdAndUpdate(req.user._id, { refreshToken: null, refreshTokenExpiry: null });
+    }
+    res.clearCookie('cc_refresh');
+    res.json({ success: true, message: 'Logged out successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

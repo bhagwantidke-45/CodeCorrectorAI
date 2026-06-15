@@ -57,31 +57,59 @@ export const deleteSubmission = async (req, res) => {
 export const getStats = async (req, res) => {
   try {
     const userId = req.user._id;
-    const [total, byLanguage, recentErrors] = await Promise.all([
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [total, byLanguage, recentSubmissions, avgScoreRes, timeSeries, qualityTrend] = await Promise.all([
       Submission.countDocuments({ userId }),
+
       Submission.aggregate([
         { $match: { userId } },
         { $group: { _id: '$language', count: { $sum: 1 }, avgScore: { $avg: '$qualityScore' } } },
         { $sort: { count: -1 } },
       ]),
-      Submission.find({ userId }).sort({ createdAt: -1 }).limit(5).select('title language qualityScore createdAt errors'),
-    ]);
 
-    const avgScore = await Submission.aggregate([
-      { $match: { userId } },
-      { $group: { _id: null, avg: { $avg: '$qualityScore' } } },
+      Submission.find({ userId }).sort({ createdAt: -1 }).limit(5)
+        .select('title language qualityScore createdAt errors'),
+
+      Submission.aggregate([
+        { $match: { userId } },
+        { $group: { _id: null, avg: { $avg: '$qualityScore' } } },
+      ]),
+
+      // Daily analysis count — last 30 days
+      Submission.aggregate([
+        { $match: { userId, createdAt: { $gte: thirtyDaysAgo } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count:      { $sum: 1 },
+            errorsFound:{ $sum: { $size: '$errors' } },
+            avgScore:   { $avg: '$qualityScore' },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+
+      // Quality trend — last 10 analyses
+      Submission.find({ userId }).sort({ createdAt: -1 }).limit(10)
+        .select('qualityScore createdAt title'),
     ]);
 
     res.json({
       success: true,
       stats: {
-        totalAnalyses: total,
-        averageQualityScore: Math.round(avgScore[0]?.avg || 0),
+        totalAnalyses:       total,
+        averageQualityScore: Math.round(avgScoreRes[0]?.avg || 0),
         byLanguage,
-        recentSubmissions: recentErrors,
+        recentSubmissions,
+        timeSeries,
+        qualityTrend: qualityTrend.reverse(), // chronological order
       },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+

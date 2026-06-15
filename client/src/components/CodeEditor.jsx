@@ -1,59 +1,69 @@
-import Editor from '@monaco-editor/react';
+import MonacoEditor from '@monaco-editor/react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { LANGUAGE_MAP } from '../utils/helpers.js';
 
-export default function CodeEditor({ value, onChange, language = 'javascript', readOnly = false, height = '400px', label = '' }) {
+const LANG_TO_MONACO = {
+  c: 'c', cpp: 'cpp', java: 'java', python: 'python',
+  javascript: 'javascript', typescript: 'typescript', php: 'php', go: 'go',
+};
+
+export default function CodeEditor({
+  value = '',
+  onChange,
+  language = 'python',
+  height = '360px',
+  readOnly = false,
+}) {
   const { isDark } = useTheme();
-
-  const options = {
-    fontSize: 14,
-    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    fontLigatures: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    readOnly,
-    padding: { top: 16, bottom: 16 },
-    lineNumbers: 'on',
-    renderLineHighlight: 'all',
-    cursorStyle: 'line',
-    wordWrap: 'on',
-    folding: true,
-    glyphMargin: false,
-    scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
-    overviewRulerLanes: 0,
-    hideCursorInOverviewRuler: true,
-    renderWhitespace: 'selection',
-    bracketPairColorization: { enabled: true },
-    smoothScrolling: true,
-  };
-
-  const monacoLang = LANGUAGE_MAP[language]?.monacoLang || language;
+  const monacoLang = LANG_TO_MONACO[language] || language;
 
   return (
-    <div className="flex flex-col h-full">
-      {label && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-dark-100 dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700 rounded-t-xl">
-          <span className="text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase tracking-wide">{label}</span>
-          <span className="text-xs px-2 py-0.5 bg-primary-100 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 rounded-md font-mono font-medium">
-            {LANGUAGE_MAP[language]?.icon} {LANGUAGE_MAP[language]?.label || language}
+    <div className="rounded-xl overflow-hidden border border-dark-200 dark:border-dark-700 shadow-inner">
+      <div className="flex items-center justify-between px-4 py-2 bg-dark-100 dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{LANGUAGE_MAP[language]?.icon || '📄'}</span>
+          <span className="text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase tracking-wide">
+            {LANGUAGE_MAP[language]?.label || language}
           </span>
+          {readOnly && (
+            <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 rounded-full font-medium">
+              Read-only
+            </span>
+          )}
         </div>
-      )}
-      <div className={`flex-1 overflow-hidden ${label ? 'rounded-b-xl' : 'rounded-xl'} border border-dark-200 dark:border-dark-700`}>
-        <Editor
-          height={height}
-          language={monacoLang}
-          value={value}
-          onChange={readOnly ? undefined : onChange}
-          theme={isDark ? 'vs-dark' : 'light'}
-          options={options}
-          loading={
-            <div className="flex items-center justify-center h-full bg-dark-900">
-              <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          }
-        />
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-400 opacity-70" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400 opacity-70" />
+          <div className="w-3 h-3 rounded-full bg-green-400 opacity-70" />
+        </div>
       </div>
+      <MonacoEditor
+        height={height}
+        language={monacoLang}
+        value={value}
+        theme={isDark ? 'vs-dark' : 'light'}
+        onChange={readOnly ? undefined : onChange}
+        options={{
+          readOnly,
+          fontSize: 14,
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+          fontLigatures: true,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          lineNumbers: 'on',
+          renderLineHighlight: 'line',
+          roundedSelection: true,
+          scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+          padding: { top: 16, bottom: 16 },
+          wordWrap: 'on',
+          automaticLayout: true,
+          tabSize: 2,
+          cursorBlinking: 'smooth',
+          smoothScrolling: true,
+          contextmenu: !readOnly,
+          quickSuggestions: !readOnly,
+        }}
+      />
     </div>
   );
 }

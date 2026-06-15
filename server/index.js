@@ -3,17 +3,19 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 // Routes
-import authRoutes from './routes/auth.js';
+import authRoutes       from './routes/auth.js';
 import submissionRoutes from './routes/submissions.js';
-import aiRoutes from './routes/ai.js';
-import reportRoutes from './routes/reports.js';
-import adminRoutes from './routes/admin.js';
-import projectRoutes from './routes/projects.js';
+import aiRoutes         from './routes/ai.js';
+import reportRoutes     from './routes/reports.js';
+import adminRoutes      from './routes/admin.js';
+import projectRoutes    from './routes/projects.js';
+import shareRoutes      from './routes/share.js';
 
 dotenv.config();
 
@@ -38,17 +40,19 @@ app.use(cors({
 // Body Parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // Static files (for generated PDFs)
 app.use('/uploads', express.static(join(__dirname, 'uploads')));
 
 // API Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth',        authRoutes);
 app.use('/api/submissions', submissionRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/projects', projectRoutes);
+app.use('/api/ai',          aiRoutes);
+app.use('/api/reports',     reportRoutes);
+app.use('/api/admin',       adminRoutes);
+app.use('/api/projects',    projectRoutes);
+app.use('/api/share',       shareRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

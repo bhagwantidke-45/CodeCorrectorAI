@@ -38,11 +38,17 @@ export const AuthProvider = ({ children }) => {
     return u;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('cc_token');
-    setToken(null);
-    setUser(null);
-    toast.success('Logged out successfully.');
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      // Ignore network errors on logout and clear state anyway
+    } finally {
+      localStorage.removeItem('cc_token');
+      setToken(null);
+      setUser(null);
+      toast.success('Logged out successfully.');
+    }
   }, []);
 
   const updateUser = useCallback((updates) => {

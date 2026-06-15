@@ -6,6 +6,7 @@ import {
   Code2, Sun, Moon, Menu, X, LogOut, User, LayoutDashboard,
   History, FileText, Shield, Zap
 } from 'lucide-react';
+import StreakBadge from './StreakBadge.jsx';
 
 const NAV_LINKS = [
   { to: '/analyze',   label: 'Analyzer',  icon: Zap },
@@ -70,7 +71,8 @@ export default function Navbar() {
             </button>
 
             {isAuthenticated ? (
-              <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-3">
+                <StreakBadge streak={user?.streak || 0} badges={user?.badges || []} compact={true} />
                 <Link to="/profile"
                   className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-dark-100 dark:hover:bg-dark-800 transition-all">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
@@ -118,10 +120,16 @@ export default function Navbar() {
           )}
           <div className="border-t border-dark-200 dark:border-dark-700 pt-3 mt-2">
             {isAuthenticated ? (
-              <button onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">
-                <LogOut className="w-4 h-4" />Logout
-              </button>
+              <div className="space-y-2">
+                <div className="px-4 py-2 flex justify-between items-center border border-dark-100 dark:border-dark-800 rounded-xl bg-dark-50/50 dark:bg-dark-800/50">
+                  <span className="text-xs font-semibold text-dark-500 dark:text-dark-400">Achievements</span>
+                  <StreakBadge streak={user?.streak || 0} badges={user?.badges || []} compact={true} />
+                </div>
+                <button onClick={handleLogout}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">
+                  <LogOut className="w-4 h-4" />Logout
+                </button>
+              </div>
             ) : (
               <div className="flex gap-2">
                 <Link to="/login" onClick={() => setOpen(false)} className="btn-secondary text-sm flex-1 justify-center">Login</Link>

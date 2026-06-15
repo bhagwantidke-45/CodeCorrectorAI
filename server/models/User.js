@@ -44,6 +44,29 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  // JWT refresh token
+  refreshToken: {
+    type: String,
+    default: null,
+    select: false,
+  },
+  refreshTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  // Gamification
+  streak: {
+    type: Number,
+    default: 0,
+  },
+  lastAnalysisDate: {
+    type: Date,
+    default: null,
+  },
+  badges: {
+    type: [String],
+    default: [],
+  },
 }, { timestamps: true });
 
 // Hash password before saving

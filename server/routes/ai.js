@@ -1,5 +1,5 @@
 import express from 'express';
-import { analyzeCode } from '../controllers/aiController.js';
+import { analyzeCode, analyzeCodeStream } from '../controllers/aiController.js';
 import auth from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
 import { aiLimiter } from '../middleware/rateLimiter.js';
@@ -13,6 +13,7 @@ const optionalAuth = (req, res, next) => {
   import('../middleware/auth.js').then(m => m.default(req, res, next)).catch(() => next());
 };
 
-router.post('/analyze', aiLimiter, optionalAuth, upload.single('file'), analyzeCode);
+router.post('/analyze',        aiLimiter, optionalAuth, upload.single('file'), analyzeCode);
+router.get('/analyze/stream',  aiLimiter, optionalAuth, analyzeCodeStream);
 
 export default router;

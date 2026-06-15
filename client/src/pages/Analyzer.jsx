@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Navbar from '../components/Navbar.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import CodeEditor from '../components/CodeEditor.jsx';
@@ -6,6 +6,7 @@ import CodeComparison from '../components/CodeComparison.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import SuggestionCard from '../components/SuggestionCard.jsx';
 import ComplexityBadge from '../components/ComplexityBadge.jsx';
+import SeverityScore from '../components/SeverityScore.jsx';
 import FileUpload from '../components/FileUpload.jsx';
 import LanguageSelector from '../components/LanguageSelector.jsx';
 import LoadingOverlay from '../components/LoadingOverlay.jsx';
@@ -13,8 +14,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import api from '../utils/api.js';
 import toast from 'react-hot-toast';
 import {
-  Zap, Upload, Edit3, Download, Copy, Check, RefreshCw,
-  AlertTriangle, Lightbulb, GitCompare, MessageSquare, ChevronDown, ChevronUp, BookOpen
+  Zap, Upload, Edit3, Download, Copy, Check, RefreshCw, Share2, Link2,
+  AlertTriangle, Lightbulb, GitCompare, MessageSquare, BookOpen, Loader2, Radio,
 } from 'lucide-react';
 import { copyToClipboard } from '../utils/helpers.js';
 
@@ -26,26 +27,53 @@ const TABS = [
 ];
 
 export default function Analyzer() {
-  const { isAuthenticated } = useAuth();
-  const [code, setCode]         = useState('');
-  const [language, setLanguage] = useState('python');
-  const [title, setTitle]       = useState('');
-  const [inputMode, setInputMode] = useState('editor'); // 'editor' | 'upload'
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState(null);
+  const { isAuthenticated, updateUser } = useAuth();
+  const [code, setCode]           = useState('');
+  const [language, setLanguage]   = useState('python');
+  const [title, setTitle]         = useState('');
+  const [inputMode, setInputMode] = useState('editor');
+  const [loading, setLoading]     = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [streamText, setStreamText] = useState('');
+  const [result, setResult]       = useState(null);
+  const [submissionId, setSubmissionId] = useState(null);
   const [activeTab, setActiveTab] = useState('errors');
-  const [copied, setCopied]     = useState(false);
-  const resultRef               = useRef(null);
+  const [copied, setCopied]       = useState(false);
+  const [shareUrl, setShareUrl]   = useState(null);
+  const [sharing, setSharing]     = useState(false);
+  const [useStream, setUseStream] = useState(false);
+  const resultRef = useRef(null);
+  const esRef     = useRef(null);
 
+  // ── Standard analysis ────────────────────────────────────────────────────
   const handleAnalyze = async () => {
     if (!code.trim()) return toast.error('Please enter some code to analyze.');
     if (!language)    return toast.error('Please select a programming language.');
+
+    if (useStream) { handleStreamAnalyze(); return; }
+
     setLoading(true);
+    setResult(null);
+    setShareUrl(null);
     try {
       const res = await api.post('/ai/analyze', { code, language, title: title || undefined });
       setResult(res.data.result);
+      setSubmissionId(res.data.submissionId);
       setActiveTab('errors');
       toast.success('Analysis complete!');
+      
+      // Update local achievements
+      const { gamification } = res.data;
+      if (gamification) {
+        updateUser({
+          streak: gamification.streak,
+          badges: gamification.badges,
+          analysisCount: gamification.analysisCount,
+        });
+        if (gamification.newBadges?.length) {
+          gamification.newBadges.forEach((b) => toast.success(`🏅 Badge unlocked!`, { duration: 4000 }));
+        }
+      }
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Analysis failed. Check your connection.');
@@ -53,6 +81,56 @@ export default function Analyzer() {
       setLoading(false);
     }
   };
+
+  // ── Streaming analysis ───────────────────────────────────────────────────
+  const handleStreamAnalyze = useCallback(() => {
+    if (!code.trim()) return;
+    setStreaming(true);
+    setStreamText('');
+    setResult(null);
+    setShareUrl(null);
+
+    const params = new URLSearchParams({ code, language, title: title || '' });
+    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const es = new EventSource(`${baseUrl}/ai/analyze/stream?${params}`);
+    esRef.current = es;
+
+    es.addEventListener('start', () => setStreamText('⚡ Streaming analysis...'));
+    es.addEventListener('chunk', (e) => {
+      const { text } = JSON.parse(e.data);
+      setStreamText((prev) => prev + text);
+    });
+    es.addEventListener('done', (e) => {
+      const { result: r, submissionId: sid, gamification } = JSON.parse(e.data);
+      setResult(r);
+      setSubmissionId(sid);
+      setStreamText('');
+      setStreaming(false);
+      setActiveTab('errors');
+      toast.success('Streaming analysis complete!');
+      
+      if (gamification) {
+        updateUser({
+          streak: gamification.streak,
+          badges: gamification.badges,
+          analysisCount: gamification.analysisCount,
+        });
+        if (gamification.newBadges?.length) {
+          gamification.newBadges.forEach((b) => toast.success(`🏅 Badge unlocked!`, { duration: 4000 }));
+        }
+      }
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+      es.close();
+    });
+    es.addEventListener('error', (e) => {
+      try {
+        const { message } = JSON.parse(e.data);
+        toast.error(message || 'Streaming failed.');
+      } catch { toast.error('Streaming connection lost.'); }
+      setStreaming(false);
+      es.close();
+    });
+  }, [code, language, title, updateUser]);
 
   const handleCopy = async () => {
     const ok = await copyToClipboard(result?.correctedCode || '');
@@ -70,7 +148,25 @@ export default function Analyzer() {
     toast.success('Download started!');
   };
 
-  const handleReset = () => { setResult(null); setCode(''); setTitle(''); };
+  const handleShare = async () => {
+    if (!submissionId || !isAuthenticated) return;
+    setSharing(true);
+    try {
+      const res = await api.post(`/share/${submissionId}`);
+      setShareUrl(res.data.shareUrl);
+      await copyToClipboard(res.data.shareUrl);
+      toast.success('Share link copied to clipboard! 🔗');
+    } catch {
+      toast.error('Failed to create share link.');
+    } finally { setSharing(false); }
+  };
+
+  const handleReset = () => {
+    setResult(null); setCode(''); setTitle(''); setShareUrl(null);
+    setStreamText(''); setSubmissionId(null);
+    if (esRef.current) { esRef.current.close(); esRef.current = null; }
+    setStreaming(false);
+  };
 
   return (
     <div className="min-h-screen bg-dark-50 dark:bg-dark-900 flex flex-col">
@@ -104,8 +200,7 @@ export default function Analyzer() {
               <div className="md:col-span-2">
                 <label className="label">Analysis Title (optional)</label>
                 <input type="text" placeholder="e.g. Fibonacci function bug fix" value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  className="input-field" />
+                  onChange={(e) => setTitle(e.target.value)} className="input-field" />
               </div>
               <div>
                 <label className="label">Language</label>
@@ -114,7 +209,7 @@ export default function Analyzer() {
             </div>
 
             {/* Input mode toggle */}
-            <div className="flex gap-2 mb-5">
+            <div className="flex gap-2 mb-5 flex-wrap">
               <button onClick={() => setInputMode('editor')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${inputMode === 'editor' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'bg-dark-100 dark:bg-dark-800 text-dark-600 dark:text-dark-300 hover:bg-dark-200 dark:hover:bg-dark-700'}`}>
                 <Edit3 className="w-4 h-4" />Text Editor
@@ -126,9 +221,7 @@ export default function Analyzer() {
             </div>
 
             {inputMode === 'editor' ? (
-              <div className="rounded-xl overflow-hidden border border-dark-200 dark:border-dark-700">
-                <CodeEditor value={code} onChange={setCode} language={language} height="360px" />
-              </div>
+              <CodeEditor value={code} onChange={setCode} language={language} height="360px" />
             ) : (
               <FileUpload
                 onFileLoad={(text) => { setCode(text); setInputMode('editor'); }}
@@ -136,15 +229,42 @@ export default function Analyzer() {
               />
             )}
 
+            {/* Streaming preview */}
+            {streaming && streamText && (
+              <div className="mt-4 p-4 rounded-xl bg-dark-50 dark:bg-dark-800 border border-dark-200 dark:border-dark-700 font-mono text-xs text-dark-600 dark:text-dark-300 max-h-48 overflow-y-auto">
+                <div className="flex items-center gap-2 mb-2">
+                  <Radio className="w-3.5 h-3.5 text-primary-500 animate-pulse" />
+                  <span className="text-primary-500 font-semibold text-xs">Streaming...</span>
+                </div>
+                <pre className="whitespace-pre-wrap break-all">{streamText}</pre>
+              </div>
+            )}
+
             {/* Analyze Button */}
-            <div className="mt-5 flex flex-col sm:flex-row items-center gap-4">
-              <button onClick={handleAnalyze} disabled={loading || !code.trim()}
+            <div className="mt-5 flex flex-col sm:flex-row items-center gap-4 flex-wrap">
+              <button onClick={handleAnalyze} disabled={loading || streaming || !code.trim()}
                 className="btn-primary w-full sm:w-auto px-10 py-3.5 text-base shadow-xl shadow-primary-500/30">
-                <Zap className="w-5 h-5" />Analyze with AI
+                {loading || streaming
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <Zap className="w-5 h-5" />}
+                {streaming ? 'Streaming...' : 'Analyze with AI'}
               </button>
+
+              {/* Streaming toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  onClick={() => setUseStream((s) => !s)}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${useStream ? 'bg-primary-500' : 'bg-dark-300 dark:bg-dark-600'}`}>
+                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${useStream ? 'translate-x-5' : 'translate-x-0'}`} />
+                </div>
+                <span className="text-sm text-dark-500 dark:text-dark-400 font-medium flex items-center gap-1">
+                  <Radio className="w-3.5 h-3.5" />Streaming mode
+                </span>
+              </label>
+
               {!isAuthenticated && (
                 <p className="text-sm text-dark-400 text-center">
-                  🔒 <a href="/register" className="text-primary-500 font-medium hover:underline">Create account</a> to save history & download reports
+                  🔒 <a href="/register" className="text-primary-500 font-medium hover:underline">Create account</a> to save history &amp; download reports
                 </p>
               )}
             </div>
@@ -159,26 +279,46 @@ export default function Analyzer() {
                   <p className="text-sm font-semibold text-dark-500 dark:text-dark-400 mb-1">AI Summary</p>
                   <p className="text-dark-800 dark:text-dark-200 leading-relaxed">{result.summary || 'Analysis complete.'}</p>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 flex-shrink-0 flex-wrap">
                   <button onClick={handleCopy} className="btn-secondary text-sm py-2 px-3">
                     {copied ? <><Check className="w-4 h-4 text-green-500" />Copied</> : <><Copy className="w-4 h-4" />Copy Code</>}
                   </button>
                   <button onClick={handleDownload} className="btn-primary text-sm py-2 px-3">
                     <Download className="w-4 h-4" />Download
                   </button>
+                  {isAuthenticated && submissionId && (
+                    <button onClick={handleShare} disabled={sharing} className="btn-secondary text-sm py-2 px-3">
+                      {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                      Share
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Complexity */}
-              <ComplexityBadge
-                qualityScore={result.qualityScore}
-                timeComplexity={result.timeComplexity}
-                spaceComplexity={result.spaceComplexity}
-              />
+              {/* Share URL pill */}
+              {shareUrl && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-primary-50 dark:bg-primary-950/20 border border-primary-200 dark:border-primary-800/40">
+                  <Link2 className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                  <a href={shareUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-primary-600 dark:text-primary-400 font-medium truncate hover:underline">{shareUrl}</a>
+                  <button onClick={() => copyToClipboard(shareUrl)} className="ml-auto text-xs btn-secondary py-1 px-2">Copy</button>
+                </div>
+              )}
+
+              {/* Metrics row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ComplexityBadge
+                  qualityScore={result.qualityScore}
+                  timeComplexity={result.timeComplexity}
+                  spaceComplexity={result.spaceComplexity}
+                  cyclomaticComplexity={result.cyclomaticComplexity}
+                  maintainabilityIndex={result.maintainabilityIndex}
+                />
+                <SeverityScore score={result.severityScore} errors={result.errors} />
+              </div>
 
               {/* Tabs */}
               <div className="glass-card overflow-hidden">
-                {/* Tab headers */}
                 <div className="flex border-b border-dark-200 dark:border-dark-700 overflow-x-auto">
                   {TABS.map(({ id, label, icon: Icon }) => {
                     const count = id === 'errors' ? result.errors?.length : id === 'suggestions' ? result.optimizations?.length : null;
@@ -201,7 +341,6 @@ export default function Analyzer() {
                   })}
                 </div>
 
-                {/* Tab content */}
                 <div className="p-6">
                   {activeTab === 'errors' && (
                     result.errors?.length > 0 ? (
@@ -218,7 +357,6 @@ export default function Analyzer() {
                       </div>
                     )
                   )}
-
                   {activeTab === 'suggestions' && (
                     result.optimizations?.length > 0 ? (
                       <div className="space-y-3">
@@ -228,11 +366,9 @@ export default function Analyzer() {
                       <p className="text-center text-dark-400 py-10">No optimization suggestions for this code.</p>
                     )
                   )}
-
                   {activeTab === 'diff' && (
                     <CodeComparison originalCode={code} correctedCode={result.correctedCode} language={language} />
                   )}
-
                   {activeTab === 'explanation' && (
                     <div className="space-y-4">
                       {result.explanations?.length > 0 ? (
@@ -252,7 +388,7 @@ export default function Analyzer() {
                 </div>
               </div>
 
-              {/* Corrected code preview */}
+              {/* Corrected code */}
               <div className="glass-card overflow-hidden">
                 <div className="px-6 py-4 border-b border-dark-200 dark:border-dark-700 flex items-center justify-between">
                   <h3 className="font-bold text-dark-800 dark:text-dark-100 flex items-center gap-2">
