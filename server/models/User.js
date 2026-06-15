@@ -67,6 +67,54 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  xp: {
+    type: Number,
+    default: 0,
+  },
+  level: {
+    type: Number,
+    default: 1,
+  },
+
+  // Challenge Progress
+  solvedChallenges: [{
+    challenge:  { type: mongoose.Schema.Types.ObjectId, ref: 'Challenge' },
+    solvedAt:   { type: Date, default: Date.now },
+    language:   { type: String, default: 'javascript' },
+    timeTaken:  { type: Number, default: 0 },   // seconds
+    points:     { type: Number, default: 10 },
+  }],
+  challengeStreak:    { type: Number, default: 0 },
+  lastChallengeDate:  { type: Date, default: null },
+
+  // Contest participation
+  contestsJoined: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contest' }],
+  contestPoints:  { type: Number, default: 0 },
+
+  // GitHub integration
+  githubUsername: { type: String, default: null },
+  githubSynced:   { type: Boolean, default: false },
+  githubRepos:    [{
+    name:        { type: String },
+    url:         { type: String },
+    language:    { type: String },
+    stars:       { type: Number, default: 0 },
+    description: { type: String, default: '' },
+  }],
+
+  // Learning Path
+  learningPath: {
+    selectedPath:   { type: String, default: null },   // e.g. 'dsa-beginner'
+    completedTopics:{ type: [String], default: [] },
+    currentTopic:   { type: String, default: null },
+    progress:       { type: Number, default: 0 },       // 0–100
+  },
+
+  // Daily challenge
+  dailyChallengeStreak:    { type: Number, default: 0 },
+  lastDailyChallengeDate:  { type: Date, default: null },
+  dailyChallengesCompleted:{ type: Number, default: 0 },
+
 }, { timestamps: true });
 
 // Hash password before saving

@@ -5,16 +5,20 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 
-import Home         from './pages/Home.jsx';
-import Login        from './pages/Login.jsx';
-import Register     from './pages/Register.jsx';
-import Dashboard    from './pages/Dashboard.jsx';
-import Analyzer     from './pages/Analyzer.jsx';
-import History      from './pages/History.jsx';
-import Reports      from './pages/Reports.jsx';
-import Profile      from './pages/Profile.jsx';
-import AdminPanel   from './pages/AdminPanel.jsx';
+import Home           from './pages/Home.jsx';
+import Login          from './pages/Login.jsx';
+import Register       from './pages/Register.jsx';
+import Dashboard      from './pages/Dashboard.jsx';
+import Analyzer       from './pages/Analyzer.jsx';
+import History        from './pages/History.jsx';
+import Reports        from './pages/Reports.jsx';
+import Profile        from './pages/Profile.jsx';
+import AdminPanel     from './pages/AdminPanel.jsx';
 import SharedAnalysis from './pages/SharedAnalysis.jsx';
+import Practice       from './pages/Practice.jsx';
+import ProblemSolver  from './pages/ProblemSolver.jsx';
+import LearningPath   from './pages/LearningPath.jsx';
+import Contests       from './pages/Contests.jsx';
 
 export default function App() {
   return (
@@ -37,12 +41,19 @@ export default function App() {
             <Route path="/register"    element={<Register />} />
             <Route path="/analyze"     element={<Analyzer />} />
             <Route path="/share/:slug" element={<SharedAnalysis />} />
+            <Route path="/practice"    element={<Practice />} />
+            <Route path="/contests"    element={<Contests />} />
+
+            {/* Problem Solver — accessible with or without auth, but submit requires auth */}
+            <Route path="/solve"       element={<ProblemSolver />} />
+            <Route path="/solve/:id"   element={<ProblemSolver />} />
 
             {/* Protected — registered users */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/history"   element={<ProtectedRoute><History /></ProtectedRoute>} />
-            <Route path="/reports"   element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/profile"   element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/dashboard"    element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/history"      element={<ProtectedRoute><History /></ProtectedRoute>} />
+            <Route path="/reports"      element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/profile"      element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/learn"        element={<ProtectedRoute><LearningPath /></ProtectedRoute>} />
 
             {/* Admin only */}
             <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />

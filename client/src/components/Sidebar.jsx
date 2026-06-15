@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   LayoutDashboard, Zap, History, FileText, User,
-  Shield, Code2, ChevronLeft, ChevronRight, FolderOpen
+  Shield, Code2, ChevronLeft, ChevronRight,
+  Target, Trophy, BookOpen, Github
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -11,7 +12,16 @@ const LINKS = [
   { to: '/analyze',   label: 'Analyzer',   icon: Zap },
   { to: '/history',   label: 'History',    icon: History },
   { to: '/reports',   label: 'Reports',    icon: FileText },
-  { to: '/profile',   label: 'Profile',    icon: User },
+];
+
+const PRACTICE_LINKS = [
+  { to: '/practice',  label: 'Practice',     icon: Target },
+  { to: '/contests',  label: 'Contests',     icon: Trophy },
+  { to: '/learn',     label: 'Learning Path', icon: BookOpen },
+];
+
+const USER_LINKS = [
+  { to: '/profile',   label: 'Profile',     icon: User },
 ];
 
 export default function Sidebar() {
@@ -35,7 +45,41 @@ export default function Sidebar() {
 
       {/* Nav Links */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {/* Main section */}
+        {!collapsed && (
+          <p className="text-xs text-dark-400 font-semibold uppercase tracking-widest px-3 mb-2">Main</p>
+        )}
         {LINKS.map(({ to, label, icon: Icon }) => (
+          <NavLink key={to} to={to}
+            className={({ isActive }) =>
+              `nav-link group ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-2' : ''}`
+            }>
+            <Icon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span>{label}</span>}
+          </NavLink>
+        ))}
+
+        {/* Practice section */}
+        {!collapsed && (
+          <p className="text-xs text-dark-400 font-semibold uppercase tracking-widest px-3 mt-4 mb-2">Practice</p>
+        )}
+        {collapsed && <div className="my-2 border-t border-dark-200 dark:border-dark-700" />}
+        {PRACTICE_LINKS.map(({ to, label, icon: Icon }) => (
+          <NavLink key={to} to={to}
+            className={({ isActive }) =>
+              `nav-link group ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-2' : ''}`
+            }>
+            <Icon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span>{label}</span>}
+          </NavLink>
+        ))}
+
+        {/* User section */}
+        {!collapsed && (
+          <p className="text-xs text-dark-400 font-semibold uppercase tracking-widest px-3 mt-4 mb-2">Account</p>
+        )}
+        {collapsed && <div className="my-2 border-t border-dark-200 dark:border-dark-700" />}
+        {USER_LINKS.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to}
             className={({ isActive }) =>
               `nav-link group ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-2' : ''}`

@@ -4,8 +4,9 @@ import Sidebar from '../components/Sidebar.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../utils/api.js';
 import toast from 'react-hot-toast';
-import { User, Mail, Lock, Save, Loader2, Shield, BarChart2, Calendar } from 'lucide-react';
+import { User, Mail, Lock, Save, Loader2, Shield, BarChart2, Calendar, Github } from 'lucide-react';
 import { formatDate } from '../utils/helpers.js';
+import GithubSync from '../components/GithubSync.jsx';
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
@@ -128,6 +129,13 @@ export default function Profile() {
                 Update Password
               </button>
             </form>
+          </div>
+          {/* GitHub Sync */}
+          <div className="glass-card p-8 mt-6">
+            <h3 className="text-lg font-bold text-dark-800 dark:text-dark-100 border-b border-dark-200 dark:border-dark-700 pb-3 mb-6 flex items-center gap-2">
+              <Github className="w-5 h-5" /> GitHub Integration
+            </h3>
+            <GithubSync />
           </div>
         </main>
       </div>
