@@ -17,8 +17,9 @@ import adminRoutes      from './routes/admin.js';
 import projectRoutes    from './routes/projects.js';
 import shareRoutes      from './routes/share.js';
 import challengeRoutes  from './routes/challenges.js';
-import contestRoutes    from './routes/contests.js';
-import githubRoutes     from './routes/github.js';
+import contestRoutes       from './routes/contests.js';
+import githubRoutes         from './routes/github.js';
+import notificationRoutes   from './routes/notifications.js';
 
 dotenv.config();
 
@@ -56,9 +57,10 @@ app.use('/api/reports',     reportRoutes);
 app.use('/api/admin',       adminRoutes);
 app.use('/api/projects',    projectRoutes);
 app.use('/api/share',       shareRoutes);
-app.use('/api/challenges',  challengeRoutes);
-app.use('/api/contests',    contestRoutes);
-app.use('/api/github',      githubRoutes);
+app.use('/api/challenges',    challengeRoutes);
+app.use('/api/contests',      contestRoutes);
+app.use('/api/github',        githubRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

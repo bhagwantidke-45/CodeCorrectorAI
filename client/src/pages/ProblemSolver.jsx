@@ -20,6 +20,72 @@ const LANG_OPTIONS = [
 
 const DIFFICULTY_COLOR = { easy: '#22c55e', medium: '#f59e0b', hard: '#ef4444' };
 
+const DRACULA_THEME = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'ff79c6' },
+    { token: 'identifier', foreground: 'f8f8f2' },
+    { token: 'string', foreground: 'f1fa8c' },
+    { token: 'number', foreground: 'bd93f9' },
+    { token: 'operator', foreground: 'ff79c6' },
+    { token: 'type', foreground: '8be9fd', fontStyle: 'italic' },
+    { token: 'function', foreground: '50fa7b' },
+  ],
+  colors: {
+    'editor.background': '#282a36',
+    'editor.foreground': '#f8f8f2',
+    'editor.lineHighlightBackground': '#343746',
+    'editor.selectionBackground': '#44475a',
+    'editorCursor.foreground': '#f8f8f0',
+  }
+};
+
+const MONOKAI_THEME = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '75715e', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'f92672' },
+    { token: 'identifier', foreground: 'f8f8f2' },
+    { token: 'string', foreground: 'e6db74' },
+    { token: 'number', foreground: 'ae81ff' },
+    { token: 'operator', foreground: 'f92672' },
+    { token: 'type', foreground: '66d9ef', fontStyle: 'italic' },
+    { token: 'function', foreground: 'a6e22e' },
+  ],
+  colors: {
+    'editor.background': '#272822',
+    'editor.foreground': '#f8f8f2',
+    'editor.lineHighlightBackground': '#3e3d32',
+    'editor.selectionBackground': '#49483e',
+    'editorCursor.foreground': '#f8f8f0',
+  }
+};
+
+const GITHUB_DARK_THEME = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '8b949e', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'ff7b72' },
+    { token: 'identifier', foreground: 'c9d1d9' },
+    { token: 'string', foreground: 'a5d6ff' },
+    { token: 'number', foreground: '79c0ff' },
+    { token: 'operator', foreground: 'ff7b72' },
+    { token: 'type', foreground: 'ffa657' },
+    { token: 'function', foreground: 'd2a8ff' },
+  ],
+  colors: {
+    'editor.background': '#0d1117',
+    'editor.foreground': '#c9d1d9',
+    'editor.lineHighlightBackground': '#161b22',
+    'editor.selectionBackground': '#282e38',
+    'editorCursor.foreground': '#c9d1d9',
+  }
+};
+
 export default function ProblemSolver() {
   const { id } = useParams();
   const location = useLocation();
@@ -39,8 +105,29 @@ export default function ProblemSolver() {
   const [timerActive, setTimerActive] = useState(false);
   const timerRef = useRef(null);
 
+  // Gemini AI Hint states
+  const [aiHints, setAiHints] = useState({ 1: null, 2: null, 3: null });
+  const [loadingHint, setLoadingHint] = useState(false);
+  const [selectedHintLevel, setSelectedHintLevel] = useState(1);
+
+  const [editorTheme, setEditorTheme] = useState(() => {
+    return localStorage.getItem('editor-theme') || 'vs-dark';
+  });
+
+  const changeTheme = (newTheme) => {
+    setEditorTheme(newTheme);
+    localStorage.setItem('editor-theme', newTheme);
+  };
+
+  const handleEditorWillMount = (monaco) => {
+    monaco.editor.defineTheme('dracula', DRACULA_THEME);
+    monaco.editor.defineTheme('monokai', MONOKAI_THEME);
+    monaco.editor.defineTheme('github-dark', GITHUB_DARK_THEME);
+  };
+
   const token = localStorage.getItem('token');
   const authHeader = { Authorization: `Bearer ${token}` };
+
 
   // Fetch challenge by ID if not passed via state
   useEffect(() => {
@@ -120,6 +207,28 @@ export default function ProblemSolver() {
     }
   };
 
+  const fetchAiHint = async () => {
+    if (!token) return toast.error('Please login to request AI hints.');
+    if (!code.trim()) return toast.error('Write or paste some code first so the AI can analyze it.');
+    setLoadingHint(true);
+    try {
+      const res = await axios.post(
+        `${API}/challenges/${challenge._id || id}/hint`,
+        { code, language, level: selectedHintLevel },
+        { headers: authHeader }
+      );
+      setAiHints(prev => ({
+        ...prev,
+        [selectedHintLevel]: res.data.data
+      }));
+      toast.success('AI hint generated!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to generate AI hint.');
+    } finally {
+      setLoadingHint(false);
+    }
+  };
+
   const resetCode = () => {
     if (challenge?.starterCode?.[language]) {
       setCode(challenge.starterCode[language]);
@@ -128,9 +237,11 @@ export default function ProblemSolver() {
     }
     setResult(null);
     setReview(null);
+    setAiHints({ 1: null, 2: null, 3: null });
     setTimer(0);
     setTimerActive(false);
   };
+
 
   if (!challenge) {
     return (
@@ -169,6 +280,15 @@ export default function ProblemSolver() {
         <select value={language} onChange={e => setLanguage(e.target.value)}
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#e2e8f0', padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
           {LANG_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
+
+        {/* Theme Selector */}
+        <select value={editorTheme} onChange={e => changeTheme(e.target.value)}
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#e2e8f0', padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+          <option value="vs-dark">VS Dark</option>
+          <option value="monokai">Monokai</option>
+          <option value="dracula">Dracula</option>
+          <option value="github-dark">GitHub Dark</option>
         </select>
 
         <button onClick={resetCode}
@@ -248,23 +368,139 @@ export default function ProblemSolver() {
             )}
 
             {activeTab === 'hints' && (
-              <div>
-                <div style={{ marginBottom: 16, color: '#94a3b8', fontSize: 13 }}>Reveal hints one at a time</div>
-                {challenge.hints?.length === 0 && <p style={{ color: '#64748b' }}>No hints available for this problem.</p>}
-                {challenge.hints?.slice(0, hintIdx + 1).map((h, i) => (
-                  <div key={i} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: 14, marginBottom: 10 }}>
-                    <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700, marginBottom: 6 }}>Hint {i + 1}</div>
-                    <div style={{ color: '#cbd5e1', fontSize: 14 }}>{h}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Static Hints */}
+                {challenge.hints?.length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Problem Hints</h3>
+                    {challenge.hints.slice(0, hintIdx + 1).map((h, i) => (
+                      <div key={i} style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 4 }}>Standard Hint {i + 1}</div>
+                        <div style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.5 }}>{h}</div>
+                      </div>
+                    ))}
+                    {hintIdx < (challenge.hints?.length || 0) - 1 && (
+                      <button onClick={() => setHintIdx(h => h + 1)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(245,158,11,0.3)', background: 'transparent', color: '#f59e0b', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        <Lightbulb size={13} /> Show Next Hint
+                      </button>
+                    )}
                   </div>
-                ))}
-                {hintIdx < (challenge.hints?.length || 0) - 1 && (
-                  <button onClick={() => setHintIdx(h => h + 1)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(245,158,11,0.3)', background: 'transparent', color: '#f59e0b', cursor: 'pointer', fontSize: 13 }}>
-                    <Lightbulb size={14} /> Show Next Hint
-                  </button>
                 )}
+
+                {/* Gemini AI Coach Hints */}
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Brain size={18} color="#c084fc" />
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#e2e8f0' }}>Gemini AI Debugging Coach</h3>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                    Get real-time feedback on your current code draft. Choose a level of guidance:
+                  </p>
+
+                  {/* Level Selector Tabs */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'rgba(255,255,255,0.03)', padding: 4, borderRadius: 8 }}>
+                    {[
+                      { val: 1, label: '1. Nudge', desc: 'Find logic/boundary bugs' },
+                      { val: 2, label: '2. Approach', desc: 'Conceptual advice' },
+                      { val: 3, label: '3. Solution', desc: 'Code logic snippet' },
+                    ].map(lvl => (
+                      <button key={lvl.val}
+                        onClick={() => setSelectedHintLevel(lvl.val)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          background: selectedHintLevel === lvl.val ? 'rgba(168,85,247,0.15)' : 'transparent',
+                          color: selectedHintLevel === lvl.val ? '#c084fc' : '#64748b',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}>
+                        {lvl.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Hint Request Button */}
+                  <button onClick={fetchAiHint} disabled={loadingHint}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(168,85,247,0.4)',
+                      background: 'rgba(168,85,247,0.08)',
+                      color: '#c084fc',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: loadingHint ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.15)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(168,85,247,0.08)'}>
+                    {loadingHint ? (
+                      <>
+                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                        Analyzing code draft…
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={14} />
+                        Get AI {selectedHintLevel === 1 ? 'Nudge' : selectedHintLevel === 2 ? 'Approach' : 'Snippet'}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Render Fetched AI Hint */}
+                  {aiHints[selectedHintLevel] && (
+                    <div style={{
+                      marginTop: 16,
+                      background: 'linear-gradient(135deg, rgba(168,85,247,0.08) 0%, rgba(99,102,241,0.05) 100%)',
+                      border: '1px solid rgba(168,85,247,0.3)',
+                      borderRadius: 12,
+                      padding: 16,
+                      boxShadow: '0 8px 32px 0 rgba(168,85,247,0.05)'
+                    }}>
+                      <div style={{ fontSize: 11, color: '#c084fc', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        Gemini Hint Response
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {aiHints[selectedHintLevel].hint}
+                      </p>
+                      
+                      {aiHints[selectedHintLevel].codeSnippet && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>
+                            Code Reference
+                          </div>
+                          <pre style={{
+                            margin: 0,
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 8,
+                            padding: 12,
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            color: '#a5f3fc',
+                            overflowX: 'auto',
+                            lineHeight: 1.5
+                          }}>
+                            {aiHints[selectedHintLevel].codeSnippet}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
+
 
             {activeTab === 'ai-review' && review && (
               <div>
@@ -324,7 +560,8 @@ export default function ProblemSolver() {
               language={LANG_OPTIONS.find(l => l.value === language)?.monaco || 'javascript'}
               value={code}
               onChange={val => setCode(val || '')}
-              theme="vs-dark"
+              theme={editorTheme}
+              beforeMount={handleEditorWillMount}
               options={{
                 fontSize: 14,
                 fontFamily: '"Fira Code", "Cascadia Code", monospace',

@@ -100,6 +100,28 @@ export default function Sidebar() {
         )}
       </nav>
 
+      {/* Streak & XP Mini Card */}
+      {!collapsed && (
+        <div className="mx-2 mb-2 p-3 rounded-2xl bg-gradient-to-br from-primary-500/10 to-purple-500/10 border border-primary-500/20">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🔥</span>
+              <span className="text-xs font-bold text-dark-700 dark:text-dark-200">
+                {user?.challengeStreak || user?.streak || 0} day streak
+              </span>
+            </div>
+            <span className="text-xs font-bold text-yellow-500">Lvl {user?.level || 1}</span>
+          </div>
+          <div className="w-full h-1.5 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, ((user?.xp || 0) % 100))}%` }}
+            />
+          </div>
+          <p className="text-xs text-dark-400 mt-1">{user?.xp || 0} XP total</p>
+        </div>
+      )}
+
       {/* Collapse Toggle */}
       <div className="px-2 py-4 border-t border-dark-200 dark:border-dark-700">
         <button onClick={() => setCollapsed(!collapsed)}

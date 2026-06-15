@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Trophy, Clock, Users, Calendar, Zap, ChevronRight,
   Star, Crown, Medal, Target, Play, Lock, Globe
@@ -27,17 +27,22 @@ export default function Contests() {
   const [contests, setContests]         = useState([]);
   const [upcoming, setUpcoming]         = useState([]);
   const [loading, setLoading]           = useState(true);
-  const [activeTab, setActiveTab]       = useState('all'); // all | live | upcoming | ended
+  const [activeTab, setActiveTab]       = useState('all'); // all | live | upcoming | ended | global
   const [leaderboard, setLeaderboard]   = useState(null);
   const [selectedContest, setSelected]  = useState(null);
   const [joining, setJoining]           = useState(null);
+  const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
 
   const token = localStorage.getItem('token');
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {
-    fetchContests();
-    fetchUpcoming();
+    if (activeTab === 'global') {
+      fetchGlobalLeaderboard();
+    } else {
+      fetchContests();
+      fetchUpcoming();
+    }
   }, [activeTab]);
 
   const fetchContests = async () => {
@@ -51,12 +56,26 @@ export default function Contests() {
     finally { setLoading(false); }
   };
 
+  const fetchGlobalLeaderboard = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API}/challenges/leaderboard`, { headers: authHeader });
+      setGlobalLeaderboard(res.data.data || []);
+    } catch {
+      setGlobalLeaderboard([]);
+      toast.error('Failed to load global leaderboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchUpcoming = async () => {
     try {
       const res = await axios.get(`${API}/contests/upcoming`);
       setUpcoming(res.data.data || []);
     } catch { /* skip */ }
   };
+
 
   const joinContest = async (contestId) => {
     if (!token) return toast.error('Please login to join');
@@ -135,77 +154,147 @@ export default function Contests() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 40px' }}>
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          {['all', 'live', 'upcoming', 'ended'].map(tab => (
+          {['all', 'live', 'upcoming', 'ended', 'global'].map(tab => (
             <button key={tab}
               onClick={() => setActiveTab(tab)}
               style={{ padding: '8px 20px', borderRadius: 10, border: '1px solid', borderColor: activeTab === tab ? '#818cf8' : 'rgba(255,255,255,0.1)', background: activeTab === tab ? 'rgba(99,102,241,0.2)' : 'transparent', color: activeTab === tab ? '#818cf8' : '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', position: 'relative' }}>
               {tab === 'live' && (
                 <span style={{ display: 'inline-block', width: 6, height: 6, background: '#22c55e', borderRadius: '50%', marginRight: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
               )}
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'global' ? 'Global Rankings' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
-          {/* Contest List */}
+        {activeTab === 'global' ? (
           <div>
             {loading ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
                 <div style={{ width: 36, height: 36, border: '3px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-                Loading contests…
+                Loading global rankings…
               </div>
-            ) : contests.length === 0 ? (
+            ) : globalLeaderboard.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
                 <Trophy size={48} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <div style={{ fontSize: 16, fontWeight: 600 }}>No contests found</div>
-                <div style={{ fontSize: 13, marginTop: 8 }}>Check back soon for upcoming contests!</div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>Leaderboard is empty</div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {contests.map(c => <ContestCard key={c._id} contest={c}
-                  onJoin={() => joinContest(c._id)}
-                  onLeaderboard={() => fetchLeaderboard(c._id)}
-                  joining={joining === c._id} />)}
-              </div>
-            )}
-          </div>
-
-          {/* Leaderboard Sidebar */}
-          <div>
-            {leaderboard ? (
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', position: 'sticky', top: 24 }}>
-                <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.2))', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Crown size={16} color="#fbbf24" /> Live Leaderboard
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{leaderboard.length} participants</div>
-                </div>
-                <div style={{ padding: 16 }}>
-                  {leaderboard.slice(0, 20).map((entry, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < leaderboard.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', padding: 24 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#e2e8f0', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Crown size={20} color="#fbbf24" /> Global Weekly Leaderboard
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {globalLeaderboard.map((entry) => (
+                    <div key={entry._id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 16,
+                        padding: '14px 20px',
+                        borderRadius: 12,
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'}>
+                      
                       <RankBadge rank={entry.rank} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', truncate: true }}>{entry.user?.name || 'Anonymous'}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{entry.solvedCount} solved</div>
+
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #818cf8, #c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 'black', color: '#fff' }}>
+                          {entry.name?.charAt(0)?.toUpperCase()}
+                        </div>
+                        <div>
+                          <Link to={`/profile/${entry._id}`} style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', textDecoration: 'none' }}>
+                            {entry.name}
+                          </Link>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            <span style={{ fontSize: 10, color: '#818cf8', background: 'rgba(99,102,241,0.1)', padding: '1px 6px', borderRadius: 4, fontWeight: 'bold' }}>
+                              Lvl {entry.level}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                              🏆 {entry.solvedCount} solved
+                            </span>
+                            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                              🏅 {entry.badgeCount} badges
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>{entry.score}</div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: '#fbbf24' }}>{entry.xp}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Total XP</div>
+                      </div>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => { setLeaderboard(null); setSelected(null); }}
-                  style={{ width: '100%', padding: '12px', background: 'transparent', border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>
-                  Close
-                </button>
-              </div>
-            ) : (
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 24, textAlign: 'center', color: '#475569' }}>
-                <Trophy size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <div style={{ fontSize: 13 }}>Click "Leaderboard" on any contest to see rankings</div>
               </div>
             )}
           </div>
-        </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+            {/* Contest List */}
+            <div>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                  <div style={{ width: 36, height: 36, border: '3px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                  Loading contests…
+                </div>
+              ) : contests.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                  <Trophy size={48} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>No contests found</div>
+                  <div style={{ fontSize: 13, marginTop: 8 }}>Check back soon for upcoming contests!</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {contests.map(c => <ContestCard key={c._id} contest={c}
+                    onJoin={() => joinContest(c._id)}
+                    onLeaderboard={() => fetchLeaderboard(c._id)}
+                    joining={joining === c._id} />)}
+                </div>
+              )}
+            </div>
+
+            {/* Leaderboard Sidebar */}
+            <div>
+              {leaderboard ? (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', position: 'sticky', top: 24 }}>
+                  <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.2))', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Crown size={16} color="#fbbf24" /> Live Leaderboard
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{leaderboard.length} participants</div>
+                  </div>
+                  <div style={{ padding: 16 }}>
+                    {leaderboard.slice(0, 20).map((entry, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < leaderboard.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                        <RankBadge rank={entry.rank} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', truncate: true }}>{entry.user?.name || 'Anonymous'}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{entry.solvedCount} solved</div>
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>{entry.score}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => { setLeaderboard(null); setSelected(null); }}
+                    style={{ width: '100%', padding: '12px', background: 'transparent', border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 24, textAlign: 'center', color: '#475569' }}>
+                  <Trophy size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <div style={{ fontSize: 13 }}>Click "Leaderboard" on any contest to see rankings</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
       <style>{`

@@ -104,3 +104,74 @@ export const analyzeCodeWithGemini = async (code, language) => {
     tokenUsage: response.usageMetadata?.totalTokenCount || 0,
   };
 };
+
+export const generateAiHintForCode = async (code, language, challenge, level) => {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-flash-latest',
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 1024,
+    },
+  });
+
+  const levelDescriptions = {
+    1: 'Level 1: Nudge. A subtle hint about where the logical bug, edge case, or syntactic issue might be. Do NOT give away the algorithm or solution, and do NOT write any code.',
+    2: 'Level 2: Approach. A conceptual explanation of the correct algorithm, pattern, logic, or data structure the user should use to solve the problem. Do NOT write code.',
+    3: 'Level 3: Near-Solution. A detailed explanation of the fix along with a short 2-4 line code snippet showing the critical part of the logic that is missing or incorrect.'
+  };
+
+  const levelDesc = levelDescriptions[level] || levelDescriptions[1];
+
+  const prompt = `You are an expert coding coach. Help a user debug their code for the programming challenge: "${challenge.title}".
+
+Problem Description:
+${challenge.description}
+
+User's current code (${language}):
+\`\`\`${language}
+${code}
+\`\`\`
+
+Request Type:
+${levelDesc}
+
+Return a STRICT JSON object (no markdown code blocks, just raw JSON) with exactly this structure:
+{
+  "hint": "<the detailed explanation or nudge text>",
+  "codeSnippet": "<2-4 lines of code/pseudo-code, ONLY if requested for Level 3, otherwise null>"
+}
+
+Rules:
+- Be encouraging.
+- Never write the full solution.
+- For Level 1 and 2, codeSnippet MUST be null.
+- Keep the hint text concise (2-4 sentences).`;
+
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  const text = response.text();
+
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      parsed = JSON.parse(jsonMatch[0]);
+    } else {
+      throw new Error('Gemini returned non-JSON response for hint generation.');
+    }
+  }
+
+  return {
+    hint: parsed.hint || 'Keep going! Check your boundary conditions.',
+    codeSnippet: parsed.codeSnippet || null
+  };
+};
+

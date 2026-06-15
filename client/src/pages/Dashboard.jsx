@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import StatsCard from '../components/StatsCard.jsx';
 import StreakBadge from '../components/StreakBadge.jsx';
+import ActivityHeatmap from '../components/ActivityHeatmap.jsx';
 import api from '../utils/api.js';
 import { formatDate, LANGUAGE_MAP, getScoreColor, getScoreLabel } from '../utils/helpers.js';
 import {
@@ -13,7 +14,8 @@ import {
 } from 'recharts';
 import {
   Zap, BarChart2, Code2, FileText, Clock, TrendingUp,
-  AlertTriangle, ArrowRight, RefreshCw, Trophy, LineChart as LineIcon, Calendar
+  AlertTriangle, ArrowRight, RefreshCw, Trophy, LineChart as LineIcon, Calendar,
+  Flame, Target, Star, ChevronRight
 } from 'lucide-react';
 
 const LANG_COLORS = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#22c55e', '#3b82f6', '#06b6d4', '#f97316'];
@@ -22,6 +24,8 @@ export default function Dashboard() {
   const { user, updateUser } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [solvedStats, setSolvedStats] = useState(null);
 
   const fetchStats = async () => {
     try {
@@ -41,7 +45,25 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { fetchStats(); }, []);
+  const fetchDailyChallenge = async () => {
+    try {
+      const res = await api.get('/challenges/daily');
+      if (res.data?.data) setDailyChallenge(res.data.data);
+    } catch {
+      // fallback to default
+    }
+  };
+
+  const fetchSolvedStats = async () => {
+    try {
+      const res = await api.get('/challenges/stats');
+      if (res.data?.data) setSolvedStats(res.data.data);
+    } catch {
+      // silently ignore
+    }
+  };
+
+  useEffect(() => { fetchStats(); fetchDailyChallenge(); fetchSolvedStats(); }, []);
 
   const chartData = stats?.byLanguage?.map(l => ({
     name: LANGUAGE_MAP[l._id]?.label || l._id,
@@ -60,6 +82,23 @@ export default function Dashboard() {
     analyses: t.count,
     errors: t.errorsFound,
   })) || [];
+
+  // XP progress within current level
+  const currentXp  = user?.xp || 0;
+  const currentLvl = user?.level || 1;
+  const xpForNext  = currentLvl * 100;          // 100 XP per level
+  const xpInLevel  = currentXp % 100;
+  const xpPct      = Math.min(100, Math.round((xpInLevel / 100) * 100));
+
+  const dc = dailyChallenge || {
+    title: 'Two Sum',
+    difficulty: 'easy',
+    category: 'Arrays',
+    _id: null,
+    description: 'Given an array of integers, return indices of two numbers that add up to a target.',
+  };
+  const dcXp = { easy: 25, medium: 50, hard: 100 }[dc.difficulty] || 50;
+  const dcLink = dc._id ? `/practice/${dc._id}` : '/practice';
 
   return (
     <div className="min-h-screen bg-dark-50 dark:bg-dark-900 flex flex-col">
@@ -82,6 +121,42 @@ export default function Dashboard() {
               <Link to="/analyze" className="btn-primary py-2 px-4 text-sm">
                 <Zap className="w-4 h-4" />New Analysis
               </Link>
+            </div>
+          </div>
+
+          {/* Daily Challenge Banner */}
+          <div className="relative overflow-hidden rounded-2xl mb-8 bg-gradient-to-r from-primary-600 via-purple-600 to-pink-600 p-0.5 shadow-xl shadow-primary-500/20">
+            <div className="rounded-2xl bg-gradient-to-r from-primary-600/90 via-purple-600/90 to-pink-600/90 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              {/* Flame + label */}
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl shadow">
+                  🔥
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">Daily Challenge</span>
+                    <span className="px-2 py-0.5 text-xs font-bold bg-white/20 text-white rounded-full capitalize">{dc.difficulty}</span>
+                    <span className="px-2 py-0.5 text-xs font-bold bg-white/20 text-white rounded-full">{dc.category}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white leading-tight">{dc.title}</h3>
+                  <p className="text-white/70 text-sm mt-0.5 line-clamp-1 hidden sm:block">{dc.description}</p>
+                </div>
+              </div>
+              {/* XP + CTA */}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="text-center">
+                  <div className="flex items-center gap-1 text-yellow-300 font-bold text-lg">
+                    <Star className="w-4 h-4" />{dcXp} XP
+                  </div>
+                  <p className="text-white/60 text-xs">Reward</p>
+                </div>
+                <Link
+                  to={dcLink}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-primary-600 font-bold rounded-xl hover:bg-white/90 transition-all duration-200 shadow-lg text-sm whitespace-nowrap"
+                >
+                  Solve Now <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -109,7 +184,31 @@ export default function Dashboard() {
                   iconBg="bg-gradient-to-br from-orange-500 to-red-500" />
               </div>
 
-              {/* Main Content Grid */}
+              {/* XP Level Progress Bar */}
+              <div className="glass-card p-5 mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg">
+                    <Trophy className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-dark-400 dark:text-dark-500 font-medium">Current Level</p>
+                    <p className="text-2xl font-black gradient-text">Lvl {currentLvl}</p>
+                  </div>
+                </div>
+                <div className="flex-1 w-full">
+                  <div className="flex justify-between text-xs text-dark-400 dark:text-dark-500 mb-1.5">
+                    <span>{xpInLevel} XP</span>
+                    <span>{xpForNext} XP to Lvl {currentLvl + 1}</span>
+                  </div>
+                  <div className="w-full h-3 bg-dark-100 dark:bg-dark-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full transition-all duration-700 ease-out"
+                      style={{ width: `${xpPct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-dark-400 dark:text-dark-500 mt-1">{xpPct}% toward next level · {currentXp} total XP</p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 {/* Charts Area (Left + Middle Column) */}
                 <div className="lg:col-span-2 space-y-6">
@@ -239,6 +338,64 @@ export default function Dashboard() {
                     )}
                   </div>
 
+                  {/* Recently Solved Challenges */}
+                  {solvedStats?.recentSolved?.length > 0 && (
+                    <div className="glass-card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-base font-bold text-dark-800 dark:text-dark-100 flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-yellow-500" />Recently Solved
+                        </h2>
+                        <Link to="/practice" className="text-xs text-primary-500 hover:text-primary-400 font-medium flex items-center gap-1">
+                          All <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <div className="space-y-2">
+                        {solvedStats.recentSolved.map((s) => {
+                          const ch = s.challenge;
+                          if (!ch) return null;
+                          const diffColor = { easy: 'text-green-500', medium: 'text-yellow-500', hard: 'text-red-500' }[ch.difficulty] || 'text-dark-400';
+                          return (
+                            <div key={s._id || ch._id} className="flex items-center gap-3 p-2.5 rounded-xl bg-dark-50 dark:bg-dark-800 hover:bg-dark-100 dark:hover:bg-dark-700 transition-colors">
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center">
+                                <Trophy className="w-4 h-4 text-green-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-dark-800 dark:text-dark-200 truncate">{ch.title}</p>
+                                <p className={`text-xs font-medium capitalize ${diffColor}`}>{ch.difficulty}</p>
+                              </div>
+                              {s.points && (
+                                <span className="text-xs font-bold text-yellow-500">+{s.points}xp</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Difficulty breakdown mini-bar */}
+                      <div className="mt-4 pt-4 border-t border-dark-100 dark:border-dark-700">
+                        <div className="flex justify-between text-xs text-dark-400 mb-1.5">
+                          <span>Progress</span>
+                          <span>{solvedStats.totalSolved} solved</span>
+                        </div>
+                        <div className="flex gap-1 h-2 rounded-full overflow-hidden">
+                          {solvedStats.byDifficulty?.easy > 0 && (
+                            <div className="bg-green-500 rounded-full" style={{ width: `${(solvedStats.byDifficulty.easy / solvedStats.totalSolved) * 100}%` }} />
+                          )}
+                          {solvedStats.byDifficulty?.medium > 0 && (
+                            <div className="bg-yellow-500 rounded-full" style={{ width: `${(solvedStats.byDifficulty.medium / solvedStats.totalSolved) * 100}%` }} />
+                          )}
+                          {solvedStats.byDifficulty?.hard > 0 && (
+                            <div className="bg-red-500 rounded-full" style={{ width: `${(solvedStats.byDifficulty.hard / solvedStats.totalSolved) * 100}%` }} />
+                          )}
+                        </div>
+                        <div className="flex gap-3 mt-2">
+                          <span className="text-xs text-green-500 font-medium">{solvedStats.byDifficulty?.easy || 0} Easy</span>
+                          <span className="text-xs text-yellow-500 font-medium">{solvedStats.byDifficulty?.medium || 0} Medium</span>
+                          <span className="text-xs text-red-500 font-medium">{solvedStats.byDifficulty?.hard || 0} Hard</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Profile card */}
                   <div className="glass-card p-6 flex flex-col items-center text-center">
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center text-3xl font-black text-white shadow-xl mb-4 flex-shrink-0">
@@ -258,6 +415,8 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+              {/* Activity Heatmap */}
+              <ActivityHeatmap timeSeries={stats?.timeSeries || []} />
             </>
           )}
         </main>

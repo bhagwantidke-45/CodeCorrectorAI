@@ -1,7 +1,7 @@
 import express from 'express';
 import {
   register, login, refreshToken, logout,
-  getProfile, updateProfile, changePassword,
+  getProfile, updateProfile, changePassword, getPublicProfile,
 } from '../controllers/authController.js';
 import auth from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -15,5 +15,7 @@ router.post('/logout',          auth, logout);           // revoke refresh token
 router.get('/me',               auth, getProfile);
 router.put('/profile',          auth, updateProfile);
 router.put('/change-password',  auth, changePassword);
+router.get('/users/:id/profile', getPublicProfile);
+
 
 export default router;

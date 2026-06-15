@@ -43,6 +43,8 @@ export default function App() {
             <Route path="/share/:slug" element={<SharedAnalysis />} />
             <Route path="/practice"    element={<Practice />} />
             <Route path="/contests"    element={<Contests />} />
+            <Route path="/profile/:id" element={<Profile />} />
+
 
             {/* Problem Solver — accessible with or without auth, but submit requires auth */}
             <Route path="/solve"       element={<ProblemSolver />} />

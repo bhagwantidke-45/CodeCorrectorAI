@@ -7,6 +7,7 @@ import {
   History, FileText, Shield, Zap
 } from 'lucide-react';
 import StreakBadge from './StreakBadge.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 const NAV_LINKS = [
   { to: '/analyze',   label: 'Analyzer',  icon: Zap },
@@ -69,6 +70,9 @@ export default function Navbar() {
               className="p-2.5 rounded-xl bg-dark-100 dark:bg-dark-800 hover:bg-dark-200 dark:hover:bg-dark-700 transition-all duration-200 text-dark-600 dark:text-dark-300">
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+
+            {/* Notification Bell — authenticated only */}
+            {isAuthenticated && <NotificationBell />}
 
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-3">

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Submission from '../models/Submission.js';
 import { logActivity } from '../services/firebaseService.js';
 
 // Short-lived access token (15 min)
@@ -161,3 +162,50 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// GET /api/auth/users/:id/profile
+export const getPublicProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .select('name avatar email role streak badges xp level githubUsername githubSynced githubRepos solvedChallenges createdAt')
+      .populate('solvedChallenges.challenge', 'title difficulty category tags companies');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User profile not found.' });
+    }
+
+    // Get daily submission counts for the user
+    const submissionActivity = await Submission.aggregate([
+      { $match: { userId: user._id } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const activityMap = {};
+    submissionActivity.forEach(act => {
+      activityMap[act._id] = act.count;
+    });
+
+    // Add solved challenges activity
+    user.solvedChallenges.forEach(solved => {
+      if (solved.solvedAt) {
+        const dateStr = new Date(solved.solvedAt).toISOString().split('T')[0];
+        activityMap[dateStr] = (activityMap[dateStr] || 0) + 1;
+      }
+    });
+
+    // Convert back to array of { date, count }
+    const activity = Object.keys(activityMap).map(date => ({
+      date,
+      count: activityMap[date]
+    }));
+
+    res.json({ success: true, user, activity });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

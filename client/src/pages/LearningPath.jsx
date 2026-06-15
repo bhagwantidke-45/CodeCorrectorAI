@@ -325,7 +325,7 @@ export default function LearningPath() {
             </div>
             {!githubData ? (
               <button onClick={() => navigate('/profile')}
-                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#1f2937', color: '#e2e8f0', fontWeight: 700, fontSize: 14, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }}>
+                style={{ padding: '10px 24px', borderRadius: 10, background: '#1f2937', color: '#e2e8f0', fontWeight: 700, fontSize: 14, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }}>
                 ⚙ Connect GitHub
               </button>
             ) : (

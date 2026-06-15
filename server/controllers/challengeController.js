@@ -1,6 +1,8 @@
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
 import { executeCode, generateAiProblems, reviewChallengeCode } from '../services/aiExecutionService.js';
+import { generateAiHintForCode } from '../services/geminiService.js';
+
 
 // ── GET /api/challenges  — list / filter challenges
 export async function getChallenges(req, res) {
@@ -254,3 +256,47 @@ export async function getUserChallengeStats(req, res) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
+
+// ── GET /api/challenges/leaderboard  — weekly global rankings
+export async function getGlobalLeaderboard(req, res) {
+  try {
+    const users = await User.find({})
+      .select('name xp level badges solvedChallenges createdAt')
+      .sort({ xp: -1 })
+      .limit(50);
+
+    const data = users.map((u, index) => ({
+      rank: index + 1,
+      _id: u._id,
+      name: u.name,
+      xp: u.xp || 0,
+      level: u.level || 1,
+      solvedCount: u.solvedChallenges?.length || 0,
+      badgeCount: u.badges?.length || 0,
+    }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ── POST /api/challenges/:id/hint  — Gemini context-aware tiered hints
+export async function getAiHint(req, res) {
+  try {
+    const { code, language = 'javascript', level = 1 } = req.body;
+    const challenge = await Challenge.findById(req.params.id);
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge not found' });
+    }
+    if (!code || !code.trim()) {
+      return res.status(400).json({ success: false, message: 'Code template or draft is required' });
+    }
+
+    const hintResult = await generateAiHintForCode(code, language, challenge, Number(level));
+    res.json({ success: true, data: hintResult });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
