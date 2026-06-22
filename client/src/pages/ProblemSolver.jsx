@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import Editor from '@monaco-editor/react';
 import {
   Play, RotateCcw, CheckCircle, XCircle, Clock, Zap,
@@ -125,8 +126,8 @@ export default function ProblemSolver() {
     monaco.editor.defineTheme('github-dark', GITHUB_DARK_THEME);
   };
 
-  const token = localStorage.getItem('token');
-  const authHeader = { Authorization: `Bearer ${token}` };
+  const { token } = useAuth();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
 
   // Fetch challenge by ID if not passed via state

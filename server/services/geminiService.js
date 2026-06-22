@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const LANGUAGE_LABELS = {
   c: 'C',
@@ -106,14 +108,6 @@ export const analyzeCodeWithGemini = async (code, language) => {
 };
 
 export const generateAiHintForCode = async (code, language, challenge, level) => {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-flash-latest',
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 1024,
-    },
-  });
-
   const levelDescriptions = {
     1: 'Level 1: Nudge. A subtle hint about where the logical bug, edge case, or syntactic issue might be. Do NOT give away the algorithm or solution, and do NOT write any code.',
     2: 'Level 2: Approach. A conceptual explanation of the correct algorithm, pattern, logic, or data structure the user should use to solve the problem. Do NOT write code.',
@@ -147,31 +141,81 @@ Rules:
 - For Level 1 and 2, codeSnippet MUST be null.
 - Keep the hint text concise (2-4 sentences).`;
 
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-
-  const cleaned = text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  let parsed;
   try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
-    } else {
-      throw new Error('Gemini returned non-JSON response for hint generation.');
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 1024,
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    const cleaned = text
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Gemini returned non-JSON response for hint generation.');
+      }
+    }
+
+    return {
+      hint: parsed.hint || 'Keep going! Check your boundary conditions.',
+      codeSnippet: parsed.codeSnippet || null
+    };
+  } catch (geminiError) {
+    console.warn('Gemini hint generation failed. Falling back to Groq...', geminiError.message);
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.4,
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: 'You are an expert AI coding coach. You must respond with valid raw JSON matching the requested structure.' },
+          { role: 'user', content: prompt }
+        ]
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim() || '{}';
+      const cleaned = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/, '')
+        .trim();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Groq returned non-JSON response for hint generation.');
+        }
+      }
+
+      return {
+        hint: parsed.hint || 'Keep going! Check your boundary conditions.',
+        codeSnippet: parsed.codeSnippet || null
+      };
+    } catch (groqError) {
+      console.error('Groq fallback hint generation failed:', groqError.message);
+      throw new Error('Failed to generate AI hints using both Gemini and Groq.');
     }
   }
-
-  return {
-    hint: parsed.hint || 'Keep going! Check your boundary conditions.',
-    codeSnippet: parsed.codeSnippet || null
-  };
 };
 

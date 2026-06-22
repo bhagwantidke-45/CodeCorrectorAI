@@ -122,7 +122,23 @@ export async function generateAiProblems(difficulty = 'medium', topic = 'arrays'
     });
 
     const raw = completion.choices[0]?.message?.content?.trim() || '[]';
-    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    
+    // Find JSON array block
+    const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    let jsonStr = '[]';
+    if (arrayMatch) {
+      jsonStr = arrayMatch[0];
+    } else {
+      // Fallback: try finding a single JSON object block
+      const objectMatch = raw.match(/\{\s*"title"[\s\S]*\}/);
+      if (objectMatch) {
+        jsonStr = `[${objectMatch[0]}]`;
+      } else {
+        // Fallback: strip code fences and try to parse the raw text
+        jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      }
+    }
+
     const problems = JSON.parse(jsonStr);
     return Array.isArray(problems) ? problems : [problems];
   } catch (err) {

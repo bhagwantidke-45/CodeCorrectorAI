@@ -203,16 +203,78 @@ export async function generateChallenge(req, res) {
 
     const problems = await generateAiProblems(difficulty, topic, Math.min(count, 3));
 
+    const VALID_CATEGORIES = [
+      'arrays', 'strings', 'linked-lists', 'trees', 'graphs',
+      'dynamic-programming', 'recursion', 'sorting', 'binary-search',
+      'hashing', 'two-pointers', 'sliding-window', 'math', 'greedy',
+      'backtracking', 'stack-queue', 'heap', 'trie', 'bit-manipulation', 'other'
+    ];
+
+    const sanitizedProblems = problems.map(p => {
+      let diff = String(p.difficulty || difficulty).toLowerCase().trim();
+      if (!['easy', 'medium', 'hard'].includes(diff)) {
+        diff = 'medium';
+      }
+
+      let cat = String(p.category || topic).toLowerCase().trim().replace(/\s+/g, '-');
+      if (!VALID_CATEGORIES.includes(cat)) {
+        cat = 'other';
+      }
+
+      const pointsMap = { easy: 10, medium: 25, hard: 50 };
+      const pts = pointsMap[diff] || 10;
+
+      const starterCode = p.starterCode || {};
+      if (!starterCode.javascript) {
+        starterCode.javascript = `// Write your javascript solution here\n`;
+      }
+      if (!starterCode.python) {
+        starterCode.python = `# Write your python solution here\npass\n`;
+      }
+      if (!starterCode.java) {
+        starterCode.java = `// Write your java solution here\n`;
+      }
+      if (!starterCode.cpp) {
+        starterCode.cpp = `// Write your cpp solution here\n`;
+      }
+
+      const testCases = Array.isArray(p.testCases)
+        ? p.testCases.map(tc => ({
+            input: String(tc.input || ''),
+            expectedOutput: String(tc.expectedOutput ?? ''),
+            isHidden: Boolean(tc.isHidden),
+            explanation: String(tc.explanation || '')
+          }))
+        : [];
+
+      return {
+        title: p.title || `AI Challenge - ${topic}`,
+        description: p.description || 'Solve this programming challenge.',
+        difficulty: diff,
+        category: cat,
+        tags: Array.isArray(p.tags) ? p.tags : [cat],
+        companies: Array.isArray(p.companies) ? p.companies : [],
+        examples: Array.isArray(p.examples) ? p.examples : [],
+        constraints: Array.isArray(p.constraints) ? p.constraints : [],
+        hints: Array.isArray(p.hints) ? p.hints : [],
+        starterCode,
+        testCases,
+        points: pts,
+        timeLimit: p.timeLimit || 2000,
+        memoryLimit: p.memoryLimit || 256
+      };
+    });
+
     if (save) {
       const saved = await Promise.all(
-        problems.map(p =>
+        sanitizedProblems.map(p =>
           Challenge.create({ ...p, isAiGenerated: true, aiPrompt: `${difficulty} ${topic}` })
         )
       );
       return res.json({ success: true, data: saved, generated: true, saved: true });
     }
 
-    res.json({ success: true, data: problems, generated: true, saved: false });
+    res.json({ success: true, data: sanitizedProblems, generated: true, saved: false });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -252,6 +314,23 @@ export async function getUserChallengeStats(req, res) {
         recentSolved:       solved.slice(-5).reverse(),
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// ── GET /api/challenges/solved  — full list of user's solved challenges
+export async function getSolvedChallenges(req, res) {
+  try {
+    const user = await User.findById(req.user._id)
+      .select('solvedChallenges')
+      .populate('solvedChallenges.challenge', 'title difficulty category tags companies acceptanceRate isAiGenerated isDailyChallenge');
+
+    const solved = (user.solvedChallenges || [])
+      .filter(s => s.challenge) // skip if challenge was deleted
+      .sort((a, b) => new Date(b.solvedAt) - new Date(a.solvedAt)); // newest first
+
+    res.json({ success: true, data: solved });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

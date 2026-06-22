@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const API = 'http://localhost:5000/api';
 
@@ -33,7 +34,7 @@ export default function Contests() {
   const [joining, setJoining]           = useState(null);
   const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
 
-  const token = localStorage.getItem('token');
+  const { token } = useAuth();
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {

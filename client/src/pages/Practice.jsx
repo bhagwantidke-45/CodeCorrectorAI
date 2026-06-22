@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Flame, Trophy, Target, Code2, Brain, Zap, Star, Clock,
   ChevronRight, Filter, Search, Building2, Tag, CheckCircle2,
-  Lock, Sparkles, TrendingUp, Calendar, Award
+  Lock, Sparkles, TrendingUp, Calendar, Award, Home, LayoutDashboard,
+  BookCheck, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import Navbar from '../components/Navbar.jsx';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -26,8 +28,9 @@ const CATEGORIES = [
 const COMPANIES = ['Google', 'Amazon', 'Microsoft', 'Meta', 'Apple', 'Netflix', 'Uber', 'Adobe', 'Flipkart', 'Paytm'];
 
 export default function Practice() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [challenges, setChallenges]     = useState([]);
   const [dailyChallenge, setDaily]      = useState(null);
@@ -35,16 +38,22 @@ export default function Practice() {
   const [loading, setLoading]           = useState(true);
   const [generating, setGenerating]     = useState(false);
 
+  // Pre-seed filter from LearningPath navigation state
+  const locState = location.state || {};
   const [filter, setFilter] = useState({
-    difficulty: '', category: 'all', company: '', search: '',
+    difficulty: '', category: locState.category || 'all', company: locState.companies?.[0] || '', search: '',
     page: 1, limit: 15,
   });
   const [total, setTotal] = useState(0);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'daily' | 'ai' | 'company'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'daily' | 'ai' | 'company' | 'solved'
   const [aiConfig, setAiConfig]   = useState({ difficulty: 'medium', topic: 'arrays' });
   const [aiProblems, setAiProblems] = useState([]);
 
-  const token = localStorage.getItem('token');
+  // Solved problems state
+  const [solvedProblems, setSolvedProblems] = useState([]);
+  const [solvedFilter, setSolvedFilter]     = useState('all'); // 'all' | 'easy' | 'medium' | 'hard'
+  const [solvedSearch, setSolvedSearch]     = useState('');
+
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchChallenges = useCallback(async () => {
@@ -80,28 +89,50 @@ export default function Practice() {
     } catch { /* skip */ }
   };
 
+  const fetchSolvedProblems = async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(`${API}/challenges/solved`, { headers: authHeader });
+      setSolvedProblems(res.data.data || []);
+    } catch { /* skip */ }
+  };
+
   useEffect(() => {
     fetchDaily();
     fetchStats();
   }, []);
 
   useEffect(() => {
+    if (activeTab === 'solved') fetchSolvedProblems();
+  }, [activeTab]);
+
+  useEffect(() => {
     fetchChallenges();
   }, [fetchChallenges]);
 
   const generateProblems = async () => {
+    if (!token) {
+      toast.error('Please login to generate AI problems.');
+      return;
+    }
     setGenerating(true);
     try {
       const res = await axios.post(`${API}/challenges/generate`, {
         difficulty: aiConfig.difficulty,
         topic: aiConfig.topic,
         count: 3,
-        save: false,
+        save: true,
       }, { headers: authHeader });
       setAiProblems(res.data.data);
       toast.success('AI generated 3 new problems!');
     } catch (err) {
-      toast.error('Generation failed. Try again.');
+      const msg = err.response?.data?.message || err.message || 'Generation failed.';
+      if (err.response?.status === 401) {
+        toast.error('Please login to generate AI problems.');
+      } else {
+        toast.error(`Generation failed: ${msg}`);
+      }
+      console.error('Generate error:', err);
     } finally {
       setGenerating(false);
     }
@@ -110,8 +141,36 @@ export default function Practice() {
   const xpToNextLevel = stats ? (stats.level * 100) - stats.xp : 0;
   const xpProgress    = stats ? ((stats.xp % 100) / 100) * 100 : 0;
 
+  const solvedEasy = solvedProblems.filter(p => p.challenge?.difficulty === 'easy').length;
+  const solvedMedium = solvedProblems.filter(p => p.challenge?.difficulty === 'medium' || p.challenge?.difficulty === 'mid').length;
+  const solvedHard = solvedProblems.filter(p => p.challenge?.difficulty === 'hard').length;
+  const solvedTotal = solvedProblems.length;
+
+  const filteredSolved = solvedProblems.filter(item => {
+    const ch = item.challenge;
+    if (!ch) return false;
+    
+    // Difficulty filter
+    if (solvedFilter !== 'all') {
+      const targetDiff = solvedFilter === 'medium' ? ['medium', 'mid'] : [solvedFilter];
+      if (!targetDiff.includes(ch.difficulty)) return false;
+    }
+    
+    // Search filter
+    if (solvedSearch) {
+      const q = solvedSearch.toLowerCase();
+      const matchTitle = ch.title?.toLowerCase().includes(q);
+      const matchTags = ch.tags?.some(t => t.toLowerCase().includes(q));
+      const matchCat = ch.category?.toLowerCase().includes(q);
+      return matchTitle || matchTags || matchCat;
+    }
+    
+    return true;
+  });
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #0f0f1a)', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
+      <Navbar />
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)', borderBottom: '1px solid rgba(99,102,241,0.2)', padding: '24px 32px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -121,6 +180,22 @@ export default function Practice() {
                 Practice & Challenges
               </h1>
               <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: 14 }}>Sharpen your skills daily • Compete • Grow</p>
+              
+              {/* Home & Dashboard Quick Nav */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button onClick={() => navigate('/')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                  <Home size={14} /> Home
+                </button>
+                <button onClick={() => navigate('/dashboard')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8', padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}>
+                  <LayoutDashboard size={14} /> Dashboard
+                </button>
+              </div>
             </div>
 
             {/* XP Bar */}
@@ -223,6 +298,7 @@ export default function Practice() {
               { id: 'daily',   label: 'Daily',           icon: Calendar },
               { id: 'ai',      label: 'AI Generated',    icon: Sparkles },
               { id: 'company', label: 'Company-wise',    icon: Building2 },
+              { id: 'solved',  label: `Solved${stats ? ` (${stats.totalSolved})` : ''}`, icon: BookCheck },
             ].map(({ id, label, icon: Icon }) => (
               <button key={id}
                 onClick={() => { setActiveTab(id); setFilter(f => ({ ...f, page: 1 })); }}
@@ -276,7 +352,7 @@ export default function Practice() {
                         </div>
                         <div style={{ fontSize: 12, color: '#64748b' }}>{p.category} • {p.tags?.slice(0, 3).join(', ')}</div>
                       </div>
-                      <button onClick={() => navigate('/solve', { state: { challenge: p } })}
+                      <button onClick={() => navigate(`/solve/${p._id}`)}
                         style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #818cf8', background: 'transparent', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                         Solve
                       </button>
@@ -287,59 +363,154 @@ export default function Practice() {
             </div>
           )}
 
-          {/* Search + Category Filter */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-              <input value={filter.search}
-                onChange={e => setFilter(f => ({ ...f, search: e.target.value, page: 1 }))}
-                placeholder="Search problems..."
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', padding: '9px 12px 9px 36px', borderRadius: 10, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {CATEGORIES.slice(0, 8).map(c => (
-                <button key={c}
-                  onClick={() => setFilter(f => ({ ...f, category: c, page: 1 }))}
-                  style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid', borderColor: filter.category === c ? '#818cf8' : 'rgba(255,255,255,0.1)', background: filter.category === c ? 'rgba(99,102,241,0.2)' : 'transparent', color: filter.category === c ? '#818cf8' : '#64748b', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  {c === 'all' ? 'All' : c.replace(/-/g, ' ')}
-                </button>
-              ))}
-            </div>
-          </div>
+          {activeTab === 'solved' ? (
+            <div>
+              {/* Search + Difficulty Filter for Solved */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
+                  <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <input value={solvedSearch}
+                    onChange={e => setSolvedSearch(e.target.value)}
+                    placeholder="Search solved problems..."
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', padding: '9px 12px 9px 36px', borderRadius: 10, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'all', label: 'All', count: solvedTotal },
+                    { key: 'easy', label: 'Easy', count: solvedEasy },
+                    { key: 'medium', label: 'Medium', count: solvedMedium },
+                    { key: 'hard', label: 'Hard', count: solvedHard },
+                  ].map(({ key, label, count }) => (
+                    <button key={key}
+                      onClick={() => setSolvedFilter(key)}
+                      style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid', borderColor: solvedFilter === key ? '#818cf8' : 'rgba(255,255,255,0.1)', background: solvedFilter === key ? 'rgba(99,102,241,0.2)' : 'transparent', color: solvedFilter === key ? '#818cf8' : '#64748b', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {label} ({count})
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Challenge List */}
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
-              <div style={{ width: 40, height: 40, border: '3px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-              Loading challenges…
-            </div>
-          ) : challenges.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
-              <Code2 size={48} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No challenges found</div>
-              <div style={{ fontSize: 13 }}>Try a different filter or generate AI problems above</div>
+              {filteredSolved.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                  <Code2 size={48} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No solved challenges found</div>
+                  <div style={{ fontSize: 13 }}>Try a different filter or search query</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{filteredSolved.length} solved problems found</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {filteredSolved.map((item, i) => {
+                      const ch = item.challenge;
+                      const solvedDate = new Date(item.solvedAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      });
+                      return (
+                        <div key={ch._id} onClick={() => navigate(`/solve/${ch._id}`)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '14px 20px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.08)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; }}>
+                          
+                          {/* Index */}
+                          <span style={{ width: 32, textAlign: 'center', color: '#475569', fontSize: 13, fontWeight: 500 }}>{i + 1}</span>
+
+                          {/* Solved badge */}
+                          <div style={{ color: '#22c55e', display: 'flex', alignItems: 'center' }}>
+                            <CheckCircle2 size={16} />
+                          </div>
+
+                          {/* Title & Tags */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 14 }}>{ch.title}</span>
+                              {ch.isAiGenerated && <span style={{ fontSize: 10, color: '#c084fc', background: 'rgba(168,85,247,0.1)', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>AI</span>}
+                              {ch.isDailyChallenge && <span style={{ fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>DAILY</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>Solved on {solvedDate}</span>
+                              <span style={{ color: '#475569' }}>•</span>
+                              {ch.tags?.slice(0, 3).map(t => (
+                                <span key={t} style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4 }}>{t}</span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Difficulty */}
+                          <DiffBadge d={ch.difficulty} />
+
+                          {/* CTA button */}
+                          <button onClick={(e) => { e.stopPropagation(); navigate(`/solve/${ch._id}`); }}
+                            style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(129,140,248,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.2)'; e.currentTarget.style.borderColor = '#818cf8'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)'; }}>
+                            Review Code <ExternalLink size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{total} problems found</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {challenges.map((ch, i) => (
-                  <ChallengeRow key={ch._id} challenge={ch} index={(filter.page - 1) * filter.limit + i + 1}
-                    onSolve={() => navigate(`/solve/${ch._id}`)} />
-                ))}
+              {/* Search + Category Filter */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
+                  <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <input value={filter.search}
+                    onChange={e => setFilter(f => ({ ...f, search: e.target.value, page: 1 }))}
+                    placeholder="Search problems..."
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', padding: '9px 12px 9px 36px', borderRadius: 10, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {CATEGORIES.slice(0, 8).map(c => (
+                    <button key={c}
+                      onClick={() => setFilter(f => ({ ...f, category: c, page: 1 }))}
+                      style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid', borderColor: filter.category === c ? '#818cf8' : 'rgba(255,255,255,0.1)', background: filter.category === c ? 'rgba(99,102,241,0.2)' : 'transparent', color: filter.category === c ? '#818cf8' : '#64748b', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {c === 'all' ? 'All' : c.replace(/-/g, ' ')}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Pagination */}
-              {total > filter.limit && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24 }}>
-                  <button disabled={filter.page === 1}
-                    onClick={() => setFilter(f => ({ ...f, page: f.page - 1 }))}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: filter.page === 1 ? 'not-allowed' : 'pointer', opacity: filter.page === 1 ? 0.4 : 1 }}>← Prev</button>
-                  <span style={{ padding: '8px 16px', color: '#94a3b8', fontSize: 13 }}>Page {filter.page} of {Math.ceil(total / filter.limit)}</span>
-                  <button disabled={filter.page >= Math.ceil(total / filter.limit)}
-                    onClick={() => setFilter(f => ({ ...f, page: f.page + 1 }))}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Next →</button>
+              {/* Challenge List */}
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                  <div style={{ width: 40, height: 40, border: '3px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                  Loading challenges…
                 </div>
+              ) : challenges.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+                  <Code2 size={48} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No challenges found</div>
+                  <div style={{ fontSize: 13 }}>Try a different filter or generate AI problems above</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{total} problems found</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {challenges.map((ch, i) => (
+                      <ChallengeRow key={ch._id} challenge={ch} index={(filter.page - 1) * filter.limit + i + 1}
+                        onSolve={() => navigate(`/solve/${ch._id}`)} />
+                    ))}
+                  </div>
+
+                  {/* Pagination */}
+                  {total > filter.limit && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24 }}>
+                      <button disabled={filter.page === 1}
+                        onClick={() => setFilter(f => ({ ...f, page: f.page - 1 }))}
+                        style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: filter.page === 1 ? 'not-allowed' : 'pointer', opacity: filter.page === 1 ? 0.4 : 1 }}>← Prev</button>
+                      <span style={{ padding: '8px 16px', color: '#94a3b8', fontSize: 13 }}>Page {filter.page} of {Math.ceil(total / filter.limit)}</span>
+                      <button disabled={filter.page >= Math.ceil(total / filter.limit)}
+                        onClick={() => setFilter(f => ({ ...f, page: f.page + 1 }))}
+                        style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Next →</button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

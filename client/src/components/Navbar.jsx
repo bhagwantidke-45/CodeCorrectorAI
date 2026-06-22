@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import {
   Code2, Sun, Moon, Menu, X, LogOut, User, LayoutDashboard,
-  History, FileText, Shield, Zap
+  History, FileText, Shield, Zap, Trophy
 } from 'lucide-react';
 import StreakBadge from './StreakBadge.jsx';
 import NotificationBell from './NotificationBell.jsx';
 
 const NAV_LINKS = [
   { to: '/analyze',   label: 'Analyzer',  icon: Zap },
+  { to: '/practice',  label: 'Practice',  icon: Trophy },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, auth: true },
   { to: '/history',   label: 'History',   icon: History, auth: true },
   { to: '/reports',   label: 'Reports',   icon: FileText, auth: true },
