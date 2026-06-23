@@ -8,11 +8,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import Navbar from '../components/Navbar.jsx';
-import axios from 'axios';
+import api from '../utils/api.js';
 import toast from 'react-hot-toast';
 import { formatDate, LANGUAGE_MAP } from '../utils/helpers.js';
-
-const API = 'http://localhost:5000/api';
 
 const DIFFICULTY_CONFIG = {
   easy:   { color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   label: 'Easy' },
@@ -77,9 +75,8 @@ export default function Practice() {
     setSelectedChallengeForSubmissions(ch);
     setLoadingSubmissions(true);
     try {
-      const res = await axios.get(`${API}/submissions`, {
-        params: { search: `Practice: ${ch.title}`, limit: 50 },
-        headers: authHeader
+      const res = await api.get('/submissions', {
+        params: { search: `Practice: ${ch.title}`, limit: 50 }
       });
       setSubmissionsForChallenge(res.data.submissions || []);
     } catch {
@@ -92,7 +89,7 @@ export default function Practice() {
   const handleToggleStar = async (id) => {
     setActing(id);
     try {
-      const res = await axios.patch(`${API}/submissions/${id}/star`, {}, { headers: authHeader });
+      const res = await api.patch(`/submissions/${id}/star`, {});
       setSubmissionsForChallenge(subs =>
         subs.map(s => s._id === id ? { ...s, isStarred: res.data.submission.isStarred } : s)
       );
@@ -108,7 +105,7 @@ export default function Practice() {
     if (!window.confirm('Request admin to delete this submission?')) return;
     setActing(id);
     try {
-      const res = await axios.patch(`${API}/submissions/${id}/request-delete`, {}, { headers: authHeader });
+      const res = await api.patch(`/submissions/${id}/request-delete`, {});
       setSubmissionsForChallenge(subs =>
         subs.map(s => s._id === id ? { ...s, isDeleteRequested: true } : s)
       );
@@ -124,13 +121,12 @@ export default function Practice() {
     if (!window.confirm('Delete this submission permanently?')) return;
     setDeleting(id);
     try {
-      await axios.delete(`${API}/submissions/${id}`, { headers: authHeader });
+      await api.delete(`/submissions/${id}`);
       toast.success('Submission deleted.');
       // Refresh submissions
       if (selectedChallengeForSubmissions) {
-        const res = await axios.get(`${API}/submissions`, {
-          params: { search: `Practice: ${selectedChallengeForSubmissions.title}`, limit: 50 },
-          headers: authHeader
+        const res = await api.get('/submissions', {
+          params: { search: `Practice: ${selectedChallengeForSubmissions.title}`, limit: 50 }
         });
         setSubmissionsForChallenge(res.data.submissions || []);
       }
@@ -144,7 +140,7 @@ export default function Practice() {
   const handleViewDetailSubmission = async (id) => {
     setDetailLoading(true);
     try {
-      const res = await axios.get(`${API}/submissions/${id}`, { headers: authHeader });
+      const res = await api.get(`/submissions/${id}`);
       setViewingDetailSubmission(res.data.submission);
     } catch {
       toast.error('Failed to load submission details.');
@@ -161,7 +157,7 @@ export default function Practice() {
       if (activeTab === 'ai')      params.aiGenerated = true;
       if (activeTab === 'daily')   params.daily = true;
 
-      const res = await axios.get(`${API}/challenges`, { params, headers: authHeader });
+      const res = await api.get('/challenges', { params });
       setChallenges(res.data.data);
       setTotal(res.data.total);
     } catch {
@@ -173,7 +169,7 @@ export default function Practice() {
 
   const fetchDaily = async () => {
     try {
-      const res = await axios.get(`${API}/challenges/daily`);
+      const res = await api.get('/challenges/daily');
       setDaily(res.data.data);
     } catch { /* no daily yet */ }
   };
@@ -181,7 +177,7 @@ export default function Practice() {
   const fetchStats = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`${API}/challenges/stats`, { headers: authHeader });
+      const res = await api.get('/challenges/stats');
       setStats(res.data.data);
     } catch { /* skip */ }
   };
@@ -189,7 +185,7 @@ export default function Practice() {
   const fetchSolvedProblems = async () => {
     if (!token) return;
     try {
-      const res = await axios.get(`${API}/challenges/solved`, { headers: authHeader });
+      const res = await api.get('/challenges/solved');
       setSolvedProblems(res.data.data || []);
     } catch { /* skip */ }
   };
@@ -214,12 +210,12 @@ export default function Practice() {
     }
     setGenerating(true);
     try {
-      const res = await axios.post(`${API}/challenges/generate`, {
+      const res = await api.post('/challenges/generate', {
         difficulty: aiConfig.difficulty,
         topic: aiConfig.topic,
         count: 3,
         save: true,
-      }, { headers: authHeader });
+      });
       setAiProblems(res.data.data);
       toast.success('AI generated 3 new problems!');
     } catch (err) {

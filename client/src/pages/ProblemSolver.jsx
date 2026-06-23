@@ -7,10 +7,8 @@ import {
   Brain, ChevronDown, ChevronUp, Lightbulb, Eye, EyeOff,
   Trophy, ArrowLeft, Code2, Loader2
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api.js';
 import toast from 'react-hot-toast';
-
-const API = 'http://localhost:5000/api';
 
 const LANG_OPTIONS = [
   { value: 'javascript', label: 'JavaScript', monaco: 'javascript' },
@@ -131,10 +129,9 @@ export default function ProblemSolver() {
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
 
-  // Fetch challenge by ID if not passed via state
   useEffect(() => {
     if (id && !challenge) {
-      axios.get(`${API}/challenges/${id}`)
+      api.get(`/challenges/${id}`)
         .then(res => { setChallenge(res.data.data); })
         .catch(() => toast.error('Challenge not found'));
     }
@@ -185,10 +182,9 @@ export default function ProblemSolver() {
     setResult(null);
     if (!timerActive) setTimerActive(true);
     try {
-      const res = await axios.post(
-        `${API}/challenges/${challenge._id || id}/submit`,
-        { code, language, contestId: location.state?.contestId },
-        { headers: authHeader }
+      const res = await api.post(
+        `/challenges/${challenge._id || id}/submit`,
+        { code, language, contestId: location.state?.contestId }
       );
       setResult(res.data.data);
       if (res.data.data.passed) {
@@ -208,10 +204,9 @@ export default function ProblemSolver() {
     if (!code.trim()) return toast.error('Write some code first!');
     setReviewing(true);
     try {
-      const res = await axios.post(
-        `${API}/challenges/${challenge._id || id}/review`,
-        { code, language },
-        { headers: authHeader }
+      const res = await api.post(
+        `/challenges/${challenge._id || id}/review`,
+        { code, language }
       );
       setReview(res.data.data);
       toast.success('AI review complete!');
@@ -227,10 +222,9 @@ export default function ProblemSolver() {
     if (!code.trim()) return toast.error('Write or paste some code first so the AI can analyze it.');
     setLoadingHint(true);
     try {
-      const res = await axios.post(
-        `${API}/challenges/${challenge._id || id}/hint`,
-        { code, language, level: selectedHintLevel },
-        { headers: authHeader }
+      const res = await api.post(
+        `/challenges/${challenge._id || id}/hint`,
+        { code, language, level: selectedHintLevel }
       );
       setAiHints(prev => ({
         ...prev,

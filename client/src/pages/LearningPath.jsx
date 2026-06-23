@@ -6,10 +6,8 @@ import {
   LayoutDashboard, X, ExternalLink, ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
-import axios from 'axios';
+import api from '../utils/api.js';
 import toast from 'react-hot-toast';
-
-const API = 'http://localhost:5000/api';
 
 // Static roadmap data
 const ROADMAPS = [
@@ -128,8 +126,8 @@ export default function LearningPath() {
   const fetchUserData = async () => {
     try {
       const [statsRes, ghRes] = await Promise.allSettled([
-        axios.get(`${API}/challenges/stats`, { headers: authHeader }),
-        axios.get(`${API}/github/profile`, { headers: authHeader }),
+        api.get('/challenges/stats'),
+        api.get('/github/profile'),
       ]);
       if (statsRes.status === 'fulfilled') setUserProgress(statsRes.value.data.data);
       if (ghRes.status === 'fulfilled' && ghRes.value.data.synced) setGithubData(ghRes.value.data.data);
@@ -153,7 +151,7 @@ export default function LearningPath() {
       const params = { limit: 20 };
       if (topic.category && topic.category !== 'other') params.category = topic.category;
       if (topic.companies?.length) params.company = topic.companies[0];
-      const res = await axios.get(`${API}/challenges`, { params, headers: authHeader });
+      const res = await api.get('/challenges', { params });
       setTopicChallenges(res.data.data || []);
     } catch {
       setTopicChallenges([]);

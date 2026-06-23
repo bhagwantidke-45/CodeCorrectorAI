@@ -6,11 +6,9 @@ import {
   LayoutDashboard, Plus, Search, Copy, ArrowLeft,
   CheckCircle, XCircle
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api.js';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext.jsx';
-
-const API = 'http://localhost:5000/api';
 
 const STATUS_CONFIG = {
   upcoming: { color: '#818cf8', bg: 'rgba(99,102,241,0.15)', label: 'Upcoming', dot: '#818cf8' },
@@ -81,7 +79,7 @@ export default function Contests() {
   const enterContest = async (contestId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/contests/${contestId}`, { headers: authHeader });
+      const res = await api.get(`/contests/${contestId}`);
       if (res.data?.success) {
         setViewingContest(res.data.data);
       }
@@ -101,7 +99,7 @@ export default function Contests() {
       } else if (activeTab !== 'all') {
         params.status = activeTab;
       }
-      const res = await axios.get(`${API}/contests`, { params, headers: authHeader });
+      const res = await api.get('/contests', { params });
       setContests(res.data.data || []);
     } catch { setContests([]); }
     finally { setLoading(false); }
@@ -110,7 +108,7 @@ export default function Contests() {
   const fetchGlobalLeaderboard = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/challenges/leaderboard`, { headers: authHeader });
+      const res = await api.get('/challenges/leaderboard');
       setGlobalLeaderboard(res.data.data || []);
     } catch {
       setGlobalLeaderboard([]);
@@ -122,14 +120,14 @@ export default function Contests() {
 
   const fetchUpcoming = async () => {
     try {
-      const res = await axios.get(`${API}/contests/upcoming`);
+      const res = await api.get('/contests/upcoming');
       setUpcoming(res.data.data || []);
     } catch { /* skip */ }
   };
 
   const fetchChallengesList = async () => {
     try {
-      const res = await axios.get(`${API}/challenges?limit=100`);
+      const res = await api.get('/challenges?limit=100');
       if (res.data?.success) {
         setChallengesList(res.data.data || []);
       }
@@ -140,7 +138,7 @@ export default function Contests() {
     if (!token) return toast.error('Please login to join');
     setJoining(contestId);
     try {
-      await axios.post(`${API}/contests/${contestId}/join`, {}, { headers: authHeader });
+      await api.post(`/contests/${contestId}/join`, {});
       toast.success('Joined contest!');
       fetchContests();
       if (viewingContest && viewingContest._id === contestId) {
@@ -157,10 +155,9 @@ export default function Contests() {
     if (!token) return toast.error('Please login to join');
     if (!code.trim()) return toast.error('Join code is required');
     try {
-      const res = await axios.post(
-        `${API}/contests/join-by-code`,
-        { joinCode: code.toUpperCase() },
-        { headers: authHeader }
+      const res = await api.post(
+        '/contests/join-by-code',
+        { joinCode: code.toUpperCase() }
       );
       if (res.data?.success) {
         toast.success('Joined contest successfully!');
@@ -205,7 +202,7 @@ export default function Contests() {
         rules: ['No cheating', 'Submit your own solutions', 'Solve all problems in the given duration'],
       };
 
-      const res = await axios.post(`${API}/contests`, payload, { headers: authHeader });
+      const res = await api.post('/contests', payload);
       if (res.data?.success) {
         toast.success('Custom contest created successfully!');
         setShowCreateModal(false);
@@ -243,7 +240,7 @@ export default function Contests() {
 
   const fetchLeaderboard = async (contestId) => {
     try {
-      const res = await axios.get(`${API}/contests/${contestId}/leaderboard`);
+      const res = await api.get(`/contests/${contestId}/leaderboard`);
       setLeaderboard(res.data.data);
       setSelected(contestId);
     } catch { toast.error('Failed to load leaderboard'); }

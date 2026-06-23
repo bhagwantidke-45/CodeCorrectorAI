@@ -3,11 +3,9 @@ import {
   Github, Star, GitFork, ExternalLink, RefreshCw,
   Unlink, CheckCircle, Loader2, AlertCircle, Globe, Users
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api.js';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext.jsx';
-
-const API = 'http://localhost:5000/api';
 
 const LANG_COLORS = {
   JavaScript: '#f1e05a', TypeScript: '#3178c6', Python: '#3572a5',
@@ -33,7 +31,7 @@ export default function GithubSync() {
   const fetchProfile = async () => {
     setFetching(true);
     try {
-      const res = await axios.get(`${API}/github/profile`, { headers: authHeader });
+      const res = await api.get('/github/profile');
       if (res.data.synced) {
         setSynced(true);
         setProfile(res.data.data);
@@ -46,7 +44,7 @@ export default function GithubSync() {
     if (!username.trim()) return toast.error('Enter your GitHub username');
     setLoading(true);
     try {
-      const res = await axios.post(`${API}/github/sync`, { username: username.trim() }, { headers: authHeader });
+      const res = await api.post('/github/sync', { username: username.trim() });
       setSynced(true);
       setProfile(res.data.data);
       toast.success(`✅ GitHub synced! Found ${res.data.data.publicRepos} repos`);
@@ -59,7 +57,7 @@ export default function GithubSync() {
 
   const disconnect = async () => {
     try {
-      await axios.delete(`${API}/github/disconnect`, { headers: authHeader });
+      await api.delete('/github/disconnect');
       setSynced(false);
       setProfile(null);
       setUsername('');
