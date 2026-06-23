@@ -1,10 +1,17 @@
 import axios from 'axios';
-console.log("VITE_API_URL =", import.meta.env.VITE_API_URL);
+
+// Priority: explicit VITE_API_URL env var → same-domain /api (production) → localhost (dev)
+const getBaseURL = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.PROD) return '/api';             // Vite sets PROD=true in production build
+  return 'http://localhost:5000/api';                  // local dev fallback
+};
+
 const api = axios.create({
-  baseURL: 'https://code-corrector-ai.vercel.app/api',
-  timeout: 60000,
+  baseURL: getBaseURL(),
+  timeout: 90000,    // increased — AI calls can take longer on cold start
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true, // send httpOnly refresh cookie
+  withCredentials: true,
 });
 
 // Attach JWT access token to every request
@@ -53,7 +60,7 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          `${import.meta.env.VITE_API_URL || '/api'}/auth/refresh`,
+          `${getBaseURL()}/auth/refresh`,
           {},
           { withCredentials: true }
         );

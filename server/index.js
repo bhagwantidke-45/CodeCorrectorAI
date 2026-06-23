@@ -29,17 +29,32 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security Middleware
-app.use(helmet());
-app.use(morgan('dev'));
+// ── CORS ────────────────────────────────────────────────────────────────────
+// Always allow localhost for dev; allow the production frontend URL from env.
+// In Vercel, set CLIENT_URL=https://code-corrector-ai-frontend.vercel.app
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
+];
 
-// CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow all origins for convenience
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Security Middleware
+app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(morgan('dev'));
 
 // Body Parsing
 app.use(express.json({ limit: '10mb' }));
@@ -83,20 +98,41 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MongoDB Connection & Server Start
-const startServer = async () => {
+// ── MongoDB + Server Start ───────────────────────────────────────────────────
+// In Vercel serverless, we export the app and let Vercel handle HTTP.
+// Locally (NODE_ENV=development or when run directly), we start a real server.
+let dbConnected = false;
+
+export const connectDB = async () => {
+  if (dbConnected || mongoose.connection.readyState === 1) return;
   try {
     await mongoose.connect(process.env.MONGO_URI);
+    dbConnected = true;
     console.log('✅ MongoDB Atlas connected');
-    app.listen(PORT, () => {
-      console.log(`🚀 CleanCoder API running on http://localhost:${PORT}`);
-    });
   } catch (error) {
     console.error('❌ Failed to connect to MongoDB:', error.message);
-    process.exit(1);
+    throw error;
   }
 };
 
-startServer();
+// Middleware to lazily connect to DB on first request (required for Vercel cold starts)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(503).json({ success: false, message: 'Database unavailable, please try again.' });
+  }
+});
+
+// Start server when NOT on Vercel (local dev or traditional hosting)
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 CleanCoder API running on http://localhost:${PORT}`);
+    });
+  }).catch(() => process.exit(1));
+}
 
 export default app;
+

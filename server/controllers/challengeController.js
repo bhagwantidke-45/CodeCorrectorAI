@@ -342,7 +342,16 @@ export async function generateChallenge(req, res) {
 
     res.json({ success: true, data: sanitizedProblems, generated: true, saved: false });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Challenge generation error:', err.message);
+    // Surface a useful message for missing/invalid API key
+    const isAuthError = err.message?.toLowerCase().includes('api key') ||
+                        err.message?.toLowerCase().includes('authentication') ||
+                        err.message?.toLowerCase().includes('401');
+    const statusCode = isAuthError ? 503 : 500;
+    const userMessage = isAuthError
+      ? 'AI service is not configured on the server. Please contact the admin.'
+      : `Failed to generate challenge: ${err.message}`;
+    res.status(statusCode).json({ success: false, message: userMessage });
   }
 }
 
