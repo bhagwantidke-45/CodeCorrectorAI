@@ -173,7 +173,7 @@ export default function ProblemSolver() {
     try {
       const res = await axios.post(
         `${API}/challenges/${challenge._id || id}/submit`,
-        { code, language },
+        { code, language, contestId: location.state?.contestId },
         { headers: authHeader }
       );
       setResult(res.data.data);
@@ -260,7 +260,13 @@ export default function ProblemSolver() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0d0d1a', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
       {/* Top Bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', background: '#13131f', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-        <button onClick={() => navigate('/practice')}
+        <button onClick={() => {
+          if (location.state?.contestId) {
+            navigate('/contests', { state: { openContestId: location.state.contestId } });
+          } else {
+            navigate('/practice');
+          }
+        }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
           <ArrowLeft size={14} /> Back
         </button>

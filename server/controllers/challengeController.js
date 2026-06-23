@@ -125,6 +125,48 @@ export async function submitChallenge(req, res) {
 
     if (result.passed && req.user) {
       const user = await User.findById(req.user._id);
+
+      // Contest Points Scoring
+      const { contestId } = req.body;
+      if (contestId) {
+        try {
+          const Contest = (await import('../models/Contest.js')).default;
+          const contest = await Contest.findById(contestId);
+          if (contest && contest.status === 'live') {
+            const pIdx = contest.participants.findIndex(
+              p => p.user.toString() === req.user._id.toString()
+            );
+            if (pIdx !== -1) {
+              const participant = contest.participants[pIdx];
+              const alreadySolvedInContest = participant.solvedAt.some(
+                s => s.challengeId.toString() === challenge._id.toString()
+              );
+              if (!alreadySolvedInContest) {
+                const contestChallenge = contest.challenges.find(
+                  c => c.challenge.toString() === challenge._id.toString()
+                );
+                const points = contestChallenge ? contestChallenge.points : 100;
+                const timeElapsed = Math.floor((Date.now() - new Date(contest.startTime)) / 1000);
+
+                participant.solvedAt.push({
+                  challengeId: challenge._id,
+                  time: timeElapsed,
+                  points,
+                });
+                participant.score += points;
+
+                // Save contest (triggers pre-save leaderboard computation)
+                await contest.save();
+
+                user.contestPoints = (user.contestPoints || 0) + points;
+              }
+            }
+          }
+        } catch (cErr) {
+          console.error('Error updating contest score:', cErr);
+        }
+      }
+
       alreadySolved = user.solvedChallenges.some(
         s => s.challenge.toString() === challenge._id.toString()
       );

@@ -98,7 +98,7 @@ export default function Dashboard() {
     description: 'Given an array of integers, return indices of two numbers that add up to a target.',
   };
   const dcXp = { easy: 25, medium: 50, hard: 100 }[dc.difficulty] || 50;
-  const dcLink = dc._id ? `/practice/${dc._id}` : '/practice';
+  const dcLink = dc._id ? `/solve/${dc._id}` : '/practice';
 
   return (
     <div className="min-h-screen bg-dark-50 dark:bg-dark-900 flex flex-col">
@@ -125,11 +125,14 @@ export default function Dashboard() {
           </div>
 
           {/* Daily Challenge Banner */}
-          <div className="relative overflow-hidden rounded-2xl mb-8 bg-gradient-to-r from-primary-600 via-purple-600 to-pink-600 p-0.5 shadow-xl shadow-primary-500/20">
+          <Link
+            to={dcLink}
+            className="block relative overflow-hidden rounded-2xl mb-8 bg-gradient-to-r from-primary-600 via-purple-600 to-pink-600 p-0.5 shadow-xl shadow-primary-500/20 hover:shadow-primary-500/30 hover:scale-[1.01] transition-all duration-300 group cursor-pointer"
+          >
             <div className="rounded-2xl bg-gradient-to-r from-primary-600/90 via-purple-600/90 to-pink-600/90 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               {/* Flame + label */}
               <div className="flex items-center gap-3 flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl shadow">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl shadow group-hover:scale-110 transition-transform duration-300">
                   🔥
                 </div>
                 <div>
@@ -146,19 +149,18 @@ export default function Dashboard() {
               <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="text-center">
                   <div className="flex items-center gap-1 text-yellow-300 font-bold text-lg">
-                    <Star className="w-4 h-4" />{dcXp} XP
+                    <Star className="w-4 h-4 fill-yellow-300" />{dcXp} XP
                   </div>
                   <p className="text-white/60 text-xs">Reward</p>
                 </div>
-                <Link
-                  to={dcLink}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-primary-600 font-bold rounded-xl hover:bg-white/90 transition-all duration-200 shadow-lg text-sm whitespace-nowrap"
+                <div
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-primary-600 font-bold rounded-xl group-hover:bg-white/95 transition-all duration-200 shadow-lg text-sm whitespace-nowrap"
                 >
-                  Solve Now <ChevronRight className="w-4 h-4" />
-                </Link>
+                  Solve Now <ChevronRight className="w-4 h-4 text-primary-600" />
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

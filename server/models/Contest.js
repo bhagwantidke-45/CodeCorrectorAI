@@ -49,7 +49,7 @@ const contestSchema = new mongoose.Schema({
   // Contest type
   type: {
     type: String,
-    enum: ['weekly', 'daily', 'special', 'company'],
+    enum: ['weekly', 'daily', 'special', 'company', 'custom'],
     default: 'weekly',
   },
 
@@ -57,6 +57,18 @@ const contestSchema = new mongoose.Schema({
     type: String,
     enum: ['beginner', 'intermediate', 'advanced', 'mixed'],
     default: 'mixed',
+  },
+
+  joinCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+  },
+
+  isPrivate: {
+    type: Boolean,
+    default: false,
   },
 
   prizes: [{ rank: Number, prize: String }],
@@ -75,8 +87,8 @@ const contestSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
 
-// Auto-generate slug
-contestSchema.pre('save', function (next) {
+// Auto-generate slug, update status, and cache leaderboard
+contestSchema.pre('save', async function (next) {
   if (this.isNew && !this.slug && this.title) {
     this.slug = this.title
       .toLowerCase()
@@ -91,6 +103,44 @@ contestSchema.pre('save', function (next) {
   if (now < this.startTime) this.status = 'upcoming';
   else if (now >= this.startTime && now < this.endTime) this.status = 'live';
   else if (now >= this.endTime) this.status = 'ended';
+
+  // Update leaderboard cache from participants
+  if (this.participants && this.participants.length > 0) {
+    try {
+      const User = mongoose.model('User');
+      const populatedParticipants = await Promise.all(
+        this.participants.map(async (p) => {
+          const u = await User.findById(p.user).select('name');
+          return {
+            user: p.user,
+            name: u ? u.name : 'Anonymous',
+            score: p.score,
+            solvedCount: p.solvedAt?.length || 0,
+          };
+        })
+      );
+
+      populatedParticipants.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const pA = this.participants.find(p => p.user.toString() === a.user.toString());
+        const pB = this.participants.find(p => p.user.toString() === b.user.toString());
+        const timeA = pA?.solvedAt?.[pA.solvedAt.length - 1]?.time || 0;
+        const timeB = pB?.solvedAt?.[pB.solvedAt.length - 1]?.time || 0;
+        return timeA - timeB;
+      });
+
+      this.leaderboard = populatedParticipants.slice(0, 50).map((p, idx) => ({
+        user: p.user,
+        name: p.name,
+        score: p.score,
+        rank: idx + 1,
+        solvedCount: p.solvedCount,
+      }));
+    } catch (err) {
+      console.error('Error updating leaderboard cache:', err);
+    }
+  }
+
   next();
 });
 

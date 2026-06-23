@@ -4,10 +4,19 @@ import User from '../models/User.js';
 // ── GET /api/contests  — list contests
 export async function getContests(req, res) {
   try {
-    const { status, type, page = 1, limit = 10 } = req.query;
+    const { status, type, myContests, page = 1, limit = 10 } = req.query;
     const filter = { isActive: true };
     if (status) filter.status = status;
     if (type)   filter.type   = type;
+
+    if (myContests === 'true' && req.user) {
+      filter.$or = [
+        { createdBy: req.user._id },
+        { 'participants.user': req.user._id }
+      ];
+    } else {
+      filter.isPrivate = { $ne: true };
+    }
 
     const skip  = (Number(page) - 1) * Number(limit);
     const total = await Contest.countDocuments(filter);
@@ -24,11 +33,11 @@ export async function getContests(req, res) {
   }
 }
 
-// ── GET /api/contests/:id  — single contest
 export async function getContest(req, res) {
   try {
     const contest = await Contest.findById(req.params.id)
       .populate('challenges.challenge', 'title difficulty points category')
+      .populate('participants.user', 'name avatar _id')
       .populate('leaderboard.user', 'name avatar');
     if (!contest) return res.status(404).json({ success: false, message: 'Contest not found' });
     res.json({ success: true, data: contest });
@@ -94,15 +103,82 @@ export async function getLeaderboard(req, res) {
   }
 }
 
-// ── POST /api/contests  — create contest (admin only)
+// ── POST /api/contests  — create contest
 export async function createContest(req, res) {
   try {
-    const contest = await Contest.create({ ...req.body, createdBy: req.user._id });
+    const data = { ...req.body, createdBy: req.user._id };
+    if (data.isPrivate || data.type === 'custom') {
+      data.isPrivate = true;
+      data.type = 'custom';
+      // Generate a unique 6-character alphanumeric code
+      let uniqueCode = '';
+      let isUnique = false;
+      while (!isUnique) {
+        uniqueCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const existing = await Contest.findOne({ joinCode: uniqueCode });
+        if (!existing) isUnique = true;
+      }
+      data.joinCode = uniqueCode;
+    }
+    
+    const contest = await Contest.create(data);
+
+    // Automatically register creator as participant
+    contest.participants.push({ user: req.user._id });
+    await contest.save();
+
+    // Track on user
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { contestsJoined: contest._id },
+    });
+
     res.status(201).json({ success: true, data: contest });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
+
+// ── POST /api/contests/join-by-code  — join a contest by its code
+export async function joinContestByCode(req, res) {
+  try {
+    const { joinCode } = req.body;
+    if (!joinCode) {
+      return res.status(400).json({ success: false, message: 'Join code is required' });
+    }
+
+    const contest = await Contest.findOne({ joinCode: joinCode.trim().toUpperCase() });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found with this code' });
+    }
+
+    if (contest.status === 'ended') {
+      return res.status(400).json({ success: false, message: 'Contest has ended' });
+    }
+
+    const alreadyJoined = contest.participants.some(
+      p => p.user.toString() === req.user._id.toString()
+    );
+
+    if (!alreadyJoined) {
+      if (contest.participants.length >= contest.maxParticipants) {
+        return res.status(400).json({ success: false, message: 'Contest is full' });
+      }
+      contest.participants.push({ user: req.user._id });
+
+      // Track on user
+      await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { contestsJoined: contest._id },
+      });
+
+      await contest.save();
+    }
+
+    res.json({ success: true, message: alreadyJoined ? 'Already joined' : 'Joined successfully', data: contest });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 
 // ── GET /api/contests/upcoming  — next 3 upcoming contests
 export async function getUpcomingContests(req, res) {
