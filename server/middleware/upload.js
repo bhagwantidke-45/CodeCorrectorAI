@@ -1,38 +1,44 @@
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Allowed file extensions
+const allowedExtensions = [
+  '.c',
+  '.cpp',
+  '.java',
+  '.py',
+  '.js',
+  '.ts',
+  '.php',
+  '.go'
+];
 
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `code-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
-
-const allowedExtensions = ['.c', '.cpp', '.java', '.py', '.js', '.ts', '.php', '.go'];
-
+// File filter
 const fileFilter = (req, file, cb) => {
-  const ext = path.extname(file.originalname).toLowerCase();
+  const ext = file.originalname
+    .substring(file.originalname.lastIndexOf('.'))
+    .toLowerCase();
+
   if (allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type. Allowed: ${allowedExtensions.join(', ')}`), false);
+    cb(
+      new Error(
+        `Unsupported file type. Allowed: ${allowedExtensions.join(', ')}`
+      ),
+      false
+    );
   }
 };
 
+// Use memory storage for Vercel
+const storage = multer.memoryStorage();
+
 const upload = multer({
   storage,
-  limits: { fileSize: 1 * 1024 * 1024 }, // 1MB limit
-  fileFilter,
+  limits: {
+    fileSize: 1 * 1024 * 1024 // 1 MB
+  },
+  fileFilter
 });
 
 export default upload;
