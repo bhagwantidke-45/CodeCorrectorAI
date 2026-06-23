@@ -1,6 +1,14 @@
 import Groq from 'groq-sdk';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq;
+
+const getGroq = () => {
+  if (!groq) {
+    const key = process.env.GROQ_API_KEY || 'placeholder_groq_key';
+    groq = new Groq({ apiKey: key });
+  }
+  return groq;
+};
 
 const EXECUTION_SYSTEM_PROMPT = `You are a code execution sandbox. When given code and test cases:
 1. Mentally trace the execution of the code.
@@ -72,7 +80,7 @@ export async function executeCode(code, language, testCases) {
   const userPrompt = `Language: ${language}\n\nCode:\n${code}\n\nTest Cases:\n${testCaseStr}`;
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
       max_tokens: 2048,
@@ -111,7 +119,7 @@ export async function generateAiProblems(difficulty = 'medium', topic = 'arrays'
   const prompt = AI_PROBLEM_PROMPT(difficulty, topic, count);
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       temperature: 0.8,
       max_tokens: 4096,
@@ -171,7 +179,7 @@ Provide a structured review as valid JSON only:
 }`;
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
       max_tokens: 2048,

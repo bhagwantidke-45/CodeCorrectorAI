@@ -1,8 +1,14 @@
 import axios from 'axios';
 
 // Priority: explicit VITE_API_URL env var → same-domain /api (production) → localhost (dev)
-const getBaseURL = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+export const getBaseURL = () => {
+  let url = import.meta.env.VITE_API_URL;
+  if (url) {
+    if (!url.endsWith('/api') && !url.endsWith('/api/')) {
+      url = url.endsWith('/') ? `${url}api` : `${url}/api`;
+    }
+    return url;
+  }
   if (import.meta.env.PROD) return '/api';             // Vite sets PROD=true in production build
   return 'http://localhost:5000/api';                  // local dev fallback
 };

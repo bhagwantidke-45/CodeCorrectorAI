@@ -1,8 +1,24 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let genAI;
+let groq;
+
+const getGenAI = () => {
+  if (!genAI) {
+    const key = process.env.GEMINI_API_KEY || 'placeholder_gemini_key';
+    genAI = new GoogleGenerativeAI(key);
+  }
+  return genAI;
+};
+
+const getGroq = () => {
+  if (!groq) {
+    const key = process.env.GROQ_API_KEY || 'placeholder_groq_key';
+    groq = new Groq({ apiKey: key });
+  }
+  return groq;
+};
 
 const LANGUAGE_LABELS = {
   c: 'C',
@@ -59,7 +75,7 @@ ${code}
 };
 
 export const analyzeCodeWithGemini = async (code, language) => {
-  const model = genAI.getGenerativeModel({
+  const model = getGenAI().getGenerativeModel({
     model: 'gemini-flash-latest',
     generationConfig: {
       temperature: 0.2,
@@ -142,7 +158,7 @@ Rules:
 - Keep the hint text concise (2-4 sentences).`;
 
   try {
-    const model = genAI.getGenerativeModel({
+    const model = getGenAI().getGenerativeModel({
       model: 'gemini-2.0-flash',
       generationConfig: {
         temperature: 0.4,
@@ -179,7 +195,7 @@ Rules:
   } catch (geminiError) {
     console.warn('Gemini hint generation failed. Falling back to Groq...', geminiError.message);
     try {
-      const completion = await groq.chat.completions.create({
+      const completion = await getGroq().chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         temperature: 0.4,
         max_tokens: 1024,

@@ -12,7 +12,7 @@ import FileUpload from '../components/FileUpload.jsx';
 import LanguageSelector from '../components/LanguageSelector.jsx';
 import LoadingOverlay from '../components/LoadingOverlay.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import api from '../utils/api.js';
+import api, { getBaseURL } from '../utils/api.js';
 import toast from 'react-hot-toast';
 import {
   Zap, Upload, Edit3, Download, Copy, Check, RefreshCw, Share2, Link2,
@@ -93,7 +93,7 @@ export default function Analyzer() {
     setShareUrl(null);
 
     const params = new URLSearchParams({ code, language, title: title || '' });
-    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const baseUrl = getBaseURL();
     const es = new EventSource(`${baseUrl}/ai/analyze/stream?${params}`);
     esRef.current = es;
 

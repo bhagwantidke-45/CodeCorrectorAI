@@ -107,6 +107,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Root endpoint for status check
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CleanCoder API Server is running!',
+    healthCheck: '/api/health'
+  });
+});
+
 // ── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.path}` });

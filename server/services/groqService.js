@@ -1,6 +1,14 @@
 import Groq from 'groq-sdk';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq;
+
+const getGroq = () => {
+  if (!groq) {
+    const key = process.env.GROQ_API_KEY || 'placeholder_groq_key';
+    groq = new Groq({ apiKey: key });
+  }
+  return groq;
+};
 
 const LANGUAGE_LABELS = {
   c: 'C', cpp: 'C++', java: 'Java', python: 'Python',
@@ -59,7 +67,7 @@ ${code}
 export const analyzeCodeWithGroq = async (code, language) => {
   const prompt = buildPrompt(code, language);
 
-  const completion = await groq.chat.completions.create({
+  const completion = await getGroq().chat.completions.create({
     messages: [
       {
         role: 'system',
@@ -108,7 +116,7 @@ export const analyzeCodeWithGroq = async (code, language) => {
 export const analyzeCodeWithGroqStream = async (code, language, onChunk) => {
   const prompt = buildPrompt(code, language);
 
-  const stream = await groq.chat.completions.create({
+  const stream = await getGroq().chat.completions.create({
     messages: [
       {
         role: 'system',
