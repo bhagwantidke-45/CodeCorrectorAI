@@ -173,6 +173,27 @@ export const getPublicProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User profile not found.' });
     }
 
+    // Protect super admin profile from being accessed by anyone else
+    if (user.email === 'bhagwantidke2004@gmail.com') {
+      let isSuperAdmin = false;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          const requestingUser = await User.findById(decoded.userId);
+          if (requestingUser && requestingUser.email === 'bhagwantidke2004@gmail.com') {
+            isSuperAdmin = true;
+          }
+        } catch (err) {
+          // Token invalid or expired
+        }
+      }
+      if (!isSuperAdmin) {
+        return res.status(403).json({ success: false, message: 'Access denied. This profile is private.' });
+      }
+    }
+
     // Get daily submission counts for the user
     const submissionActivity = await Submission.aggregate([
       { $match: { userId: user._id } },

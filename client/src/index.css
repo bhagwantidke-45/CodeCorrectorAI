@@ -65,6 +65,9 @@
   .label {
     @apply block text-sm font-semibold text-dark-600 dark:text-dark-300 mb-2;
   }
+  .label-sm {
+    @apply block text-xs font-bold text-dark-600 dark:text-dark-300 uppercase tracking-wide mb-1.5;
+  }
 
   /* Severity badges */
   .badge-critical { @apply px-2.5 py-1 text-xs font-bold bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400 rounded-full; }

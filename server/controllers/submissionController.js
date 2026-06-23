@@ -7,7 +7,10 @@ export const getSubmissions = async (req, res) => {
     const { page = 1, limit = 10, language, search } = req.query;
     const query = { userId: req.user._id };
     if (language) query.language = language;
-    if (search) query.title = { $regex: search, $options: 'i' };
+    if (search) {
+      const escapedSearch = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      query.title = { $regex: escapedSearch, $options: 'i' };
+    }
 
     const total = await Submission.countDocuments(query);
     const submissions = await Submission.find(query)
@@ -42,7 +45,12 @@ export const getSubmissionById = async (req, res) => {
 // DELETE /api/submissions/:id
 export const deleteSubmission = async (req, res) => {
   try {
-    const submission = await Submission.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+    // Only admins can delete submissions!
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Only admins can delete submissions.' });
+    }
+
+    const submission = await Submission.findByIdAndDelete(req.params.id);
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Submission not found.' });
     }
@@ -108,6 +116,41 @@ export const getStats = async (req, res) => {
         qualityTrend: qualityTrend.reverse(), // chronological order
       },
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// PATCH /api/submissions/:id/star
+export const toggleStarSubmission = async (req, res) => {
+  try {
+    const submission = await Submission.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Submission not found.' });
+    }
+    submission.isStarred = !submission.isStarred;
+    if (submission.isStarred) {
+      submission.expiresAt = undefined;
+    } else {
+      submission.expiresAt = new Date(submission.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+    }
+    await submission.save();
+    res.json({ success: true, message: submission.isStarred ? 'Submission starred!' : 'Submission unstarred.', submission });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// PATCH /api/submissions/:id/request-delete
+export const requestDeleteSubmission = async (req, res) => {
+  try {
+    const submission = await Submission.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Submission not found.' });
+    }
+    submission.isDeleteRequested = true;
+    await submission.save();
+    res.json({ success: true, message: 'Deletion request sent to admin.', submission });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

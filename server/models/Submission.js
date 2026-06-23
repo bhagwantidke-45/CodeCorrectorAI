@@ -58,16 +58,26 @@ const submissionSchema = new mongoose.Schema({
   // Sharing
   slug:       { type: String, unique: true, sparse: true },
   isPublic:   { type: Boolean, default: false },
+  isStarred:  { type: Boolean, default: false },
+  isDeleteRequested: { type: Boolean, default: false },
+  expiresAt:  { type: Date },
 }, { timestamps: true });
 
-// Auto-generate slug when making public
+// Auto-generate slug when making public & set expiry date
 submissionSchema.pre('save', function (next) {
   if (this.isPublic && !this.slug) {
     this.slug = uuidv4().split('-')[0] + uuidv4().split('-')[0]; // 16-char slug
   }
+  
+  if (this.isStarred) {
+    this.expiresAt = undefined;
+  } else if (!this.expiresAt) {
+    this.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  }
   next();
 });
 
+submissionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 submissionSchema.index({ userId: 1, createdAt: -1 });
 submissionSchema.index({ language: 1 });
 submissionSchema.index({ status: 1 });

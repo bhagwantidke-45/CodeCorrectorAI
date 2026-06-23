@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import CodeEditor from '../components/CodeEditor.jsx';
@@ -28,8 +29,9 @@ const TABS = [
 
 export default function Analyzer() {
   const { isAuthenticated, updateUser } = useAuth();
-  const [code, setCode]           = useState('');
-  const [language, setLanguage]   = useState('python');
+  const location = useLocation();
+  const [code, setCode]           = useState(location.state?.code || '');
+  const [language, setLanguage]   = useState(location.state?.language || 'python');
   const [title, setTitle]         = useState('');
   const [inputMode, setInputMode] = useState('editor');
   const [loading, setLoading]     = useState(false);

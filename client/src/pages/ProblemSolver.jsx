@@ -93,8 +93,9 @@ export default function ProblemSolver() {
   const navigate = useNavigate();
 
   const [challenge, setChallenge]   = useState(location.state?.challenge || null);
-  const [language, setLanguage]     = useState('javascript');
-  const [code, setCode]             = useState('');
+  const [language, setLanguage]     = useState(location.state?.language || 'javascript');
+  const [code, setCode]             = useState(location.state?.code || '');
+  const codeLoadedFromState         = useRef(!!location.state?.code);
   const [result, setResult]         = useState(null);
   const [review, setReview]         = useState(null);
   const [running, setRunning]       = useState(false);
@@ -139,14 +140,27 @@ export default function ProblemSolver() {
     }
   }, [id]);
 
-  // Set starter code when challenge or language changes
+  // Set starter code when challenge or language changes.
+  // If code was pre-loaded from router state (previous submission), don't overwrite it.
   useEffect(() => {
+    if (codeLoadedFromState.current) {
+      // Code was pre-loaded; only clear the flag on language change so the user
+      // can still switch language and get a fresh template.
+      return;
+    }
     if (challenge?.starterCode?.[language]) {
       setCode(challenge.starterCode[language]);
     } else if (challenge) {
       setCode(`// Write your ${language} solution here\n`);
     }
   }, [challenge, language]);
+
+  // When the user explicitly changes language, clear the pre-load flag so they
+  // get the appropriate starter template instead of the old submission code.
+  const handleLanguageChange = (newLang) => {
+    codeLoadedFromState.current = false;
+    setLanguage(newLang);
+  };
 
   // Timer
   useEffect(() => {
@@ -231,6 +245,7 @@ export default function ProblemSolver() {
   };
 
   const resetCode = () => {
+    codeLoadedFromState.current = false;
     if (challenge?.starterCode?.[language]) {
       setCode(challenge.starterCode[language]);
     } else {
@@ -284,7 +299,7 @@ export default function ProblemSolver() {
         </div>
 
         {/* Language Selector */}
-        <select value={language} onChange={e => setLanguage(e.target.value)}
+        <select value={language} onChange={e => handleLanguageChange(e.target.value)}
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#e2e8f0', padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
           {LANG_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
         </select>

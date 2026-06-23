@@ -4,12 +4,13 @@ import {
   Flame, Trophy, Target, Code2, Brain, Zap, Star, Clock,
   ChevronRight, Filter, Search, Building2, Tag, CheckCircle2,
   Lock, Sparkles, TrendingUp, Calendar, Award, Home, LayoutDashboard,
-  BookCheck, ExternalLink
+  BookCheck, ExternalLink, Eye, Trash2, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import Navbar from '../components/Navbar.jsx';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { formatDate, LANGUAGE_MAP } from '../utils/helpers.js';
 
 const API = 'http://localhost:5000/api';
 
@@ -54,7 +55,103 @@ export default function Practice() {
   const [solvedFilter, setSolvedFilter]     = useState('all'); // 'all' | 'easy' | 'medium' | 'hard'
   const [solvedSearch, setSolvedSearch]     = useState('');
 
+  // View challenge submissions state
+  const [selectedChallengeForSubmissions, setSelectedChallengeForSubmissions] = useState(null);
+  const [submissionsForChallenge, setSubmissionsForChallenge] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [viewingDetailSubmission, setViewingDetailSubmission] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [acting, setActing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const getScoreColorHex = (score) => {
+    if (score >= 90) return '#22c55e'; // Green
+    if (score >= 70) return '#3b82f6'; // Blue
+    if (score >= 50) return '#eab308'; // Yellow
+    return '#ef4444'; // Red
+  };
+
+  const handleOpenSubmissions = async (ch) => {
+    setSelectedChallengeForSubmissions(ch);
+    setLoadingSubmissions(true);
+    try {
+      const res = await axios.get(`${API}/submissions`, {
+        params: { search: `Practice: ${ch.title}`, limit: 50 },
+        headers: authHeader
+      });
+      setSubmissionsForChallenge(res.data.submissions || []);
+    } catch {
+      toast.error('Failed to load submissions for this challenge.');
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const handleToggleStar = async (id) => {
+    setActing(id);
+    try {
+      const res = await axios.patch(`${API}/submissions/${id}/star`, {}, { headers: authHeader });
+      setSubmissionsForChallenge(subs =>
+        subs.map(s => s._id === id ? { ...s, isStarred: res.data.submission.isStarred } : s)
+      );
+      toast.success(res.data.message);
+    } catch {
+      toast.error('Failed to star/unstar.');
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleRequestDeleteSubmission = async (id) => {
+    if (!window.confirm('Request admin to delete this submission?')) return;
+    setActing(id);
+    try {
+      const res = await axios.patch(`${API}/submissions/${id}/request-delete`, {}, { headers: authHeader });
+      setSubmissionsForChallenge(subs =>
+        subs.map(s => s._id === id ? { ...s, isDeleteRequested: true } : s)
+      );
+      toast.success('Deletion request submitted to admin.');
+    } catch {
+      toast.error('Failed to submit request.');
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleDeleteSubmission = async (id) => {
+    if (!window.confirm('Delete this submission permanently?')) return;
+    setDeleting(id);
+    try {
+      await axios.delete(`${API}/submissions/${id}`, { headers: authHeader });
+      toast.success('Submission deleted.');
+      // Refresh submissions
+      if (selectedChallengeForSubmissions) {
+        const res = await axios.get(`${API}/submissions`, {
+          params: { search: `Practice: ${selectedChallengeForSubmissions.title}`, limit: 50 },
+          headers: authHeader
+        });
+        setSubmissionsForChallenge(res.data.submissions || []);
+      }
+    } catch {
+      toast.error('Failed to delete.');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleViewDetailSubmission = async (id) => {
+    setDetailLoading(true);
+    try {
+      const res = await axios.get(`${API}/submissions/${id}`, { headers: authHeader });
+      setViewingDetailSubmission(res.data.submission);
+    } catch {
+      toast.error('Failed to load submission details.');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const fetchChallenges = useCallback(async () => {
     setLoading(true);
@@ -440,13 +537,21 @@ export default function Practice() {
                           {/* Difficulty */}
                           <DiffBadge d={ch.difficulty} />
 
-                          {/* CTA button */}
-                          <button onClick={(e) => { e.stopPropagation(); navigate(`/solve/${ch._id}`); }}
-                            style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(129,140,248,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s' }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.2)'; e.currentTarget.style.borderColor = '#818cf8'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)'; }}>
-                            Review Code <ExternalLink size={12} />
-                          </button>
+                          {/* CTA buttons */}
+                          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => handleOpenSubmissions(ch)}
+                              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.2)'; e.currentTarget.style.borderColor = '#f59e0b'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.1)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)'; }}>
+                              Submissions <Eye size={12} />
+                            </button>
+                            <button onClick={() => navigate(`/solve/${ch._id}`)}
+                              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(129,140,248,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.2)'; e.currentTarget.style.borderColor = '#818cf8'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)'; }}>
+                              Review Code <ExternalLink size={12} />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -516,6 +621,226 @@ export default function Practice() {
           )}
         </div>
       </div>
+
+      {/* Submissions List Modal */}
+      {selectedChallengeForSubmissions && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: 16 }}>
+          <div style={{ background: '#131324', border: '1px solid rgba(99,102,241,0.2)', width: '100%', maxWidth: '800px', maxHeight: '85vh', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>Submissions</h3>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>For: <strong style={{ color: '#818cf8' }}>{selectedChallengeForSubmissions.title}</strong></p>
+              </div>
+              <button onClick={() => setSelectedChallengeForSubmissions(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 8, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+              {loadingSubmissions ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 12 }}>
+                  <div style={{ width: 32, height: 32, border: '3px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <span style={{ fontSize: 14, color: '#94a3b8' }}>Loading submissions…</span>
+                </div>
+              ) : submissionsForChallenge.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+                  <Code2 size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#94a3b8' }}>No submissions found</div>
+                  <p style={{ margin: '4px 0 0', fontSize: 13 }}>You haven't submitted code for this challenge yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {submissionsForChallenge.map((sub) => {
+                    const scoreColor = getScoreColorHex(sub.qualityScore);
+                    return (
+                      <div key={sub._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px', borderRadius: 12, transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {/* Star button */}
+                          <button
+                            onClick={() => handleToggleStar(sub._id)}
+                            disabled={acting === sub._id}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: sub.isStarred ? '#fbbf24' : '#475569', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title={sub.isStarred ? 'Unstar solution' : 'Star solution'}
+                          >
+                            <Star size={16} fill={sub.isStarred ? 'currentColor' : 'none'} />
+                          </button>
+
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13, color: LANGUAGE_MAP[sub.language]?.color || '#818cf8' }}>
+                                {LANGUAGE_MAP[sub.language]?.icon} {LANGUAGE_MAP[sub.language]?.label || sub.language}
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: sub.status === 'completed' ? '#22c55e' : '#ef4444', background: sub.status === 'completed' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', padding: '1px 6px', borderRadius: 99 }}>
+                                {sub.status || 'completed'}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>
+                                Score: {sub.qualityScore ?? 'N/A'}/100
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 11, color: '#64748b' }}>
+                              <span>Submitted on {formatDate(sub.createdAt)}</span>
+                              {sub.isStarred ? (
+                                <span style={{ color: '#fbbf24', fontWeight: 600 }}>• Starred (never expires)</span>
+                              ) : sub.createdAt && (
+                                <>
+                                  <span>•</span>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <Clock size={10} />
+                                    Expires in {Math.max(0, Math.ceil((new Date(sub.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) / (1000 * 60 * 60 * 24)))} days
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            onClick={() => handleViewDetailSubmission(sub._id)}
+                            disabled={detailLoading}
+                            style={{ padding: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}
+                            title="View solution code"
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                          {user?.role === 'admin' ? (
+                            <button
+                              onClick={() => handleDeleteSubmission(sub._id)}
+                              disabled={deleting === sub._id}
+                              style={{ padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}
+                              title="Delete permanently (Admin)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleRequestDeleteSubmission(sub._id)}
+                              disabled={acting === sub._id || sub.isDeleteRequested}
+                              style={{ padding: 8, background: sub.isDeleteRequested ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.05)', border: '1px solid', borderColor: sub.isDeleteRequested ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)', color: sub.isDeleteRequested ? '#f59e0b' : '#94a3b8', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}
+                              title={sub.isDeleteRequested ? 'Deletion request pending' : 'Request deletion from admin'}
+                            >
+                              <Trash2 size={14} /> {sub.isDeleteRequested ? 'Pending' : 'Request Delete'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', background: 'rgba(255,255,255,0.01)' }}>
+              <button onClick={() => setSelectedChallengeForSubmissions(null)} style={{ padding: '8px 20px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submission Detail Modal */}
+      {viewingDetailSubmission && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', padding: 16 }}>
+          <div style={{ background: '#0e0e18', border: '1px solid rgba(99,102,241,0.3)', width: '100%', maxWidth: '750px', maxHeight: '90vh', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#13131f' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Code2 size={18} color="#818cf8" />
+                  {viewingDetailSubmission.title || 'Untitled Submission'}
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Calendar size={12} />
+                  Submitted on {formatDate(viewingDetailSubmission.createdAt)}
+                </p>
+              </div>
+              <button onClick={() => setViewingDetailSubmission(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', padding: 6, borderRadius: 8 }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Metric boxes */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Language</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{LANGUAGE_MAP[viewingDetailSubmission.language]?.label || viewingDetailSubmission.language}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Quality Score</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: getScoreColorHex(viewingDetailSubmission.qualityScore) }}>{viewingDetailSubmission.qualityScore ?? 'N/A'}/100</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Complexity</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', lineHeight: 1.4 }}>
+                    Time: {viewingDetailSubmission.timeComplexity || 'N/A'}<br />
+                    Space: {viewingDetailSubmission.spaceComplexity || 'N/A'}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Status</div>
+                  <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: viewingDetailSubmission.status === 'completed' ? '#22c55e' : '#ef4444', background: viewingDetailSubmission.status === 'completed' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 99, marginTop: 4 }}>
+                    {viewingDetailSubmission.status || 'completed'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Code block */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Solution Code</span>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(viewingDetailSubmission.originalCode);
+                    toast.success('Code copied to clipboard!');
+                  }} style={{ background: 'transparent', border: 'none', color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Copy Code
+                  </button>
+                </div>
+                <pre style={{ margin: 0, padding: 16, background: '#07070c', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, fontSize: 13, color: '#cbd5e1', overflowX: 'auto', fontFamily: '"Fira Code", monospace', maxHeight: 300, lineHeight: 1.5 }}>
+                  {viewingDetailSubmission.originalCode}
+                </pre>
+              </div>
+
+              {/* Summary */}
+              {viewingDetailSubmission.summary && (
+                <div style={{ background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', marginBottom: 6 }}>Summary & Performance</div>
+                  <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.6 }}>{viewingDetailSubmission.summary}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 12, background: '#13131f' }}>
+              <button onClick={() => setViewingDetailSubmission(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  const chId = selectedChallengeForSubmissions?._id;
+                  setViewingDetailSubmission(null);
+                  setSelectedChallengeForSubmissions(null);
+                  navigate(`/solve/${chId}`, {
+                    state: {
+                      code: viewingDetailSubmission.originalCode,
+                      language: viewingDetailSubmission.language
+                    }
+                  });
+                }}
+                style={{ flex: 1, padding: '10px 16px', borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #4f46e5)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                <Zap size={14} /> Load Code to Editor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

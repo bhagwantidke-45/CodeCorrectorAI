@@ -1,5 +1,6 @@
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
+import Submission from '../models/Submission.js';
 import { executeCode, generateAiProblems, reviewChallengeCode } from '../services/aiExecutionService.js';
 import { generateAiHintForCode } from '../services/geminiService.js';
 
@@ -208,6 +209,29 @@ export async function submitChallenge(req, res) {
       challenge.acceptanceRate = Math.round((challenge.totalSolved / challenge.totalAttempts) * 100);
     }
     await challenge.save();
+
+    // Save as a Submission in user's history if authenticated
+    if (req.user) {
+      try {
+        await Submission.create({
+          userId: req.user._id,
+          originalCode: code,
+          correctedCode: '',
+          language,
+          errors: [],
+          optimizations: [],
+          explanations: [],
+          status: result.passed ? 'completed' : 'failed',
+          title: `Practice: ${challenge.title}`,
+          summary: result.passed ? 'Passed all test cases.' : result.error || 'Failed test cases.',
+          qualityScore: result.passed ? 100 : 0,
+          timeComplexity: result.timeComplexity || 'N/A',
+          spaceComplexity: result.spaceComplexity || 'N/A',
+        });
+      } catch (subErr) {
+        console.error('Error saving practice submission:', subErr);
+      }
+    }
 
     res.json({
       success: true,
