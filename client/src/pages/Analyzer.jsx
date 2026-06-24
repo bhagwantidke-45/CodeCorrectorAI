@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import {
   Zap, Upload, Edit3, Download, Copy, Check, RefreshCw, Share2, Link2,
   AlertTriangle, Lightbulb, GitCompare, MessageSquare, BookOpen, Loader2, Radio,
+  History as HistoryIcon,
 } from 'lucide-react';
 import { copyToClipboard } from '../utils/helpers.js';
 
@@ -407,6 +408,22 @@ export default function Analyzer() {
                 </div>
                 <CodeEditor value={result.correctedCode} language={language} readOnly height="350px" />
               </div>
+
+              {/* Saved to history banner for authenticated users */}
+              {isAuthenticated && submissionId && (
+                <div className="glass-card p-4 flex items-center gap-4 border-green-500/20 bg-green-500/5">
+                  <div className="w-9 h-9 rounded-xl bg-green-500/15 flex items-center justify-center flex-shrink-0">
+                    <HistoryIcon className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-dark-800 dark:text-dark-100">Analysis saved to your history</p>
+                    <p className="text-xs text-dark-500 dark:text-dark-400">This analysis is stored in the database and accessible anytime from your History page.</p>
+                  </div>
+                  <a href="/history" className="btn-secondary text-sm py-2 px-4 flex-shrink-0 flex items-center gap-2">
+                    <HistoryIcon className="w-4 h-4" />View History
+                  </a>
+                </div>
+              )}
 
               {!isAuthenticated && (
                 <div className="glass-card p-6 flex flex-col sm:flex-row items-center gap-4 border-primary-200 dark:border-primary-800/40 bg-primary-50/50 dark:bg-primary-950/10">
